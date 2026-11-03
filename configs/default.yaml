@@ -1,0 +1,90 @@
+# Default AgentRoute scenario. Experiment configs override only what they change.
+seed: 1
+
+topology:
+  agents_per_cell: 20       # number of cells grows with the agent count
+  min_cells: 9
+  max_cells: 400
+  cell_spacing_m: 500       # distance between neighbouring gNBs
+  cells_per_core: 8         # one core router per 8 cells (at least 4)
+  delay_ms:                 # one-way propagation delay per link type
+    radio: 5.0
+    xn: 2.0
+    backhaul: 5.0
+    core: 3.0
+    cloud: 20.0
+  loss:
+    radio: 0.002
+    wired: 0.0005
+    bad: 0.03               # loss on "bad" wired links
+  bad_link_fraction: 0.1
+
+agents:
+  n_agents: 100
+  mobile_fraction: 0.5      # random-waypoint UEs
+  cloud_fraction: 0.1       # agents hosted in the cloud node
+  class_zipf: 1.0           # capability supply ~ Zipf(s); 0 = uniform
+  speed_mps: 5.0
+  pause_s: 2.0
+  hysteresis: 0.15          # switch cell only if the new gNB is 15% closer
+  handover_interrupt_s: 0.05
+  mobility_dt_s: 1.0
+
+routers:
+  service_ms: 0.2           # per-packet processing time
+  queue_limit: 100
+  hotspot_fraction: 0.15    # routers with bursty background traffic
+  rho_base: 0.2             # background utilisation of a normal router
+  rho_busy: 0.95            # background utilisation of a busy hotspot
+  busy_mean_s: 5.0          # hotspots switch busy/idle with this mean period
+  bg_service_ms: 1.0
+  bg_queue_limit: 50
+  hello_s: 0.1              # neighbour state (queue, handover) is refreshed this often
+
+sfib:
+  radius: 3
+  summary: kmeans           # kmeans | mean | exact
+  k: 4
+  refresh_s: 10.0
+  failure_detect_s: 1.0
+  handover_window_s: 2.0    # a gNB is flagged "in handover" for this long
+
+forwarding:
+  ttl: 16
+  tau: null                 # null -> read results/tau.json (experiments/tune_tau.py)
+  header: float32           # float32 | int8 | binary
+
+sim:
+  duration_s: 30.0
+  warmup_s: 2.0
+  query_rate: 10.0          # task requests per second, whole network
+  load: 1.0                 # scales query_rate and background utilisation
+  failure_fraction: 0.0
+  failure_time_frac: 0.33
+
+baselines:
+  flood_ttl: 6
+  registry_service_ms: 1.0
+  registry_queue_limit: 200
+  chord_bits: 32
+
+dqn:
+  model_path: results/models/dqn.pt
+  gnn_model_path: results/models/gnn.pt
+  hidden: 64
+  gamma: 0.98
+  lr: 0.001
+  batch_size: 128
+  buffer_size: 50000
+  train_every: 4
+  target_update: 500
+  episodes: 300
+  eps_start: 1.0
+  eps_end: 0.05
+  eps_decay_frac: 0.6
+  eval_every: 10
+  reward:
+    hop_cost: 0.05
+    delay_scale_s: 0.1
+    deliver_bonus: 1.0
+    drop_penalty: 1.0

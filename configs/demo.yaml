@@ -1,0 +1,11 @@
+# Small demo scenario for the animation, the Streamlit app and the web player.
+# 100 agents -> 9 cells, 4 core routers, 1 cloud node. Every event is logged.
+seed: 7
+agents:
+  n_agents: 100
+  speed_mps: 8.0
+routers:
+  hotspot_fraction: 0.25
+sim:
+  duration_s: 30.0
+  load: 2.0

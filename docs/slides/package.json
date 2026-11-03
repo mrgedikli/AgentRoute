@@ -1,0 +1,11 @@
+{
+  "name": "agentroute-slides",
+  "private": true,
+  "description": "Builds docs/slides/AgentRoute.pptx (python ../../viz/plots.py first)",
+  "scripts": {
+    "build": "node build_slides.js"
+  },
+  "dependencies": {
+    "pptxgenjs": "^3.12.0"
+  }
+}

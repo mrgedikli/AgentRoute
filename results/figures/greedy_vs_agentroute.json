@@ -1,0 +1,18 @@
+{
+  "pid": 530,
+  "text": "get the words from this voicemail",
+  "greedy": {
+    "type": "drop",
+    "reason": "wrong_agent",
+    "hops": 2,
+    "time_ms": 17.4,
+    "agent_class": null
+  },
+  "agentroute": {
+    "type": "deliver",
+    "reason": null,
+    "hops": 2,
+    "time_ms": 21.8,
+    "agent_class": "speech_to_text"
+  }
+}

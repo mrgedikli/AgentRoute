@@ -1,0 +1,15 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.DS_Store
+# large or regenerated outputs
+results/cache/
+results/logs/
+results/raw/*.tmp
+viz/web/node_modules/
+viz/web/dist/
+viz/web/public/data/
+docs/slides/node_modules/
+# shared archive of the project
+*.zip

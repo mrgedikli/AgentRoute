@@ -1,0 +1,23 @@
+{
+  "1000": {
+    "routers": 74,
+    "handovers_per_s": 4.5,
+    "msgs_per_handover": 32.6,
+    "full_round_msgs": 444,
+    "share_of_full_round": 0.0734
+  },
+  "3000": {
+    "routers": 195,
+    "handovers_per_s": 14.0,
+    "msgs_per_handover": 31.6,
+    "full_round_msgs": 1216,
+    "share_of_full_round": 0.026
+  },
+  "10000": {
+    "routers": 450,
+    "handovers_per_s": 47.7,
+    "msgs_per_handover": 24.4,
+    "full_round_msgs": 2892,
+    "share_of_full_round": 0.0084
+  }
+}

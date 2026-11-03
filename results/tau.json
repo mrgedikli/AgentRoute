@@ -1,0 +1,12 @@
+{
+  "tau": 0.405,
+  "train_f1": 0.5902,
+  "train_precision": 0.6447,
+  "train_recall": 0.5443,
+  "test_recall": 0.5667,
+  "test_false_accept": 0.0063,
+  "train_top1": 0.7629,
+  "test_top1": 0.7733,
+  "mean_pos_cos": 0.4146,
+  "mean_neg_cos": 0.0671
+}
