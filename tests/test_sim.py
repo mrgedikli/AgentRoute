@@ -23,7 +23,7 @@ def test_same_seed_same_result():
 
 def test_all_methods_see_the_same_queries():
     counts = set()
-    for m in ("greedy", "flooding", "registry", "chord"):
+    for m in ("greedy", "greedy_load", "spfr", "flooding", "registry", "registry3", "chord", "sdht"):
         counts.add(Simulator(small_cfg(), m, seed=2).run()["n_queries"])
     assert len(counts) == 1
 
@@ -39,8 +39,33 @@ def test_chord_fails_on_paraphrases():
 def test_flooding_is_bounded_by_dedup():
     sim = Simulator(small_cfg(), "flooding", seed=1)
     s = sim.run()
-    bound = 2 * sim.G.number_of_edges() + sim.G.number_of_nodes()
-    assert s["query_msgs"] / s["n_queries"] <= bound
+    assert sim.flood.copies / s["n_queries"] <= 2 * sim.G.number_of_edges()
+
+
+def test_flooding_time_includes_the_collection_window():
+    cfg = small_cfg()
+    s = Simulator(cfg, "flooding", seed=1).run()
+    assert s["time_ms"] >= 1000.0 * cfg["baselines"]["flood_window_s"]
+
+
+def test_semantic_dht_finds_paraphrases_that_chord_cannot():
+    a = Simulator(small_cfg(), "sdht", seed=1).run()
+    b = Simulator(small_cfg(), "chord", seed=1).run()
+    assert a["success_rate"] > 0.0 and b["success_rate"] == 0.0
+
+
+def test_replicated_registry_survives_when_the_central_one_is_lost():
+    sim = Simulator(small_cfg(), "registry3", seed=1)
+    assert len(sim.registry.nodes) == 3
+    sim.known_dead.add(sim.registry.nodes[0])
+    server, path = sim.registry.nearest(sim.gnbs[0])
+    assert server in sim.registry.nodes[1:] and path
+
+
+def test_oracle_bounds_are_consistent():
+    s = Simulator(small_cfg(), "registry", seed=1).run()
+    assert 0.0 <= s["oracle_best"] <= s["oracle_any"] <= 1.0
+    assert s["ctrl_kB_per_s"] > 0 and s["query_kB_per_query"] > 0
 
 
 def test_node_failures_are_applied():
@@ -52,7 +77,7 @@ def test_node_failures_are_applied():
 
 def test_baselines_survive_heavy_failures():
     # 30% failed routers can partition the network; lookups must fail cleanly, not crash
-    for m in ("chord", "registry", "flooding"):
+    for m in ("chord", "sdht", "registry", "registry3", "flooding"):
         for seed in (1, 2, 3):
             s = Simulator(small_cfg(failure_fraction=0.3), m, seed=seed).run()
             assert s["n_queries"] > 0
@@ -78,3 +103,10 @@ def test_dqn_policy_runs_and_saves(tmp_path):
     loaded = DQNPolicy.load(path)
     X = np.random.rand(5, N_FEATURES).astype(np.float32)
     assert np.allclose(loaded.q_values(X), policy.q_values(X), atol=1e-6)
+
+
+def test_every_policy_gets_a_return():
+    for m in ("greedy", "greedy_load", "spfr"):
+        sim = Simulator(small_cfg(), m, seed=1)
+        sim.run()
+        assert sim.policy.episode_return != 0.0

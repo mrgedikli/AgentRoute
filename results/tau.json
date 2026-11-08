@@ -1,12 +1,853 @@
 {
-  "tau": 0.405,
-  "train_f1": 0.5902,
-  "train_precision": 0.6447,
-  "train_recall": 0.5443,
-  "test_recall": 0.5667,
-  "test_false_accept": 0.0063,
-  "train_top1": 0.7629,
-  "test_top1": 0.7733,
-  "mean_pos_cos": 0.4146,
-  "mean_neg_cos": 0.0671
+  "tau": 0.355,
+  "train_score": 0.4454,
+  "train_accept_right": 0.7029,
+  "train_reject_when_absent": 0.5171,
+  "train_wrong_accept": 0.1543,
+  "test_top1": 0.76,
+  "test_accept_right": 0.7067,
+  "test_reject_when_absent": 0.4933,
+  "test_wrong_accept": 0.1667,
+  "curve": [
+    {
+      "tau": 0.1,
+      "accept_right": 0.7771,
+      "reject_when_absent": 0.0,
+      "wrong_accept": 0.2229
+    },
+    {
+      "tau": 0.105,
+      "accept_right": 0.7771,
+      "reject_when_absent": 0.0,
+      "wrong_accept": 0.2229
+    },
+    {
+      "tau": 0.11,
+      "accept_right": 0.7771,
+      "reject_when_absent": 0.0,
+      "wrong_accept": 0.2229
+    },
+    {
+      "tau": 0.115,
+      "accept_right": 0.7771,
+      "reject_when_absent": 0.0029,
+      "wrong_accept": 0.22
+    },
+    {
+      "tau": 0.12,
+      "accept_right": 0.7771,
+      "reject_when_absent": 0.0029,
+      "wrong_accept": 0.22
+    },
+    {
+      "tau": 0.125,
+      "accept_right": 0.7771,
+      "reject_when_absent": 0.0029,
+      "wrong_accept": 0.22
+    },
+    {
+      "tau": 0.13,
+      "accept_right": 0.7771,
+      "reject_when_absent": 0.0057,
+      "wrong_accept": 0.22
+    },
+    {
+      "tau": 0.135,
+      "accept_right": 0.7771,
+      "reject_when_absent": 0.0114,
+      "wrong_accept": 0.2171
+    },
+    {
+      "tau": 0.14,
+      "accept_right": 0.7771,
+      "reject_when_absent": 0.0114,
+      "wrong_accept": 0.2171
+    },
+    {
+      "tau": 0.145,
+      "accept_right": 0.7771,
+      "reject_when_absent": 0.0143,
+      "wrong_accept": 0.2171
+    },
+    {
+      "tau": 0.15,
+      "accept_right": 0.7771,
+      "reject_when_absent": 0.0143,
+      "wrong_accept": 0.2171
+    },
+    {
+      "tau": 0.155,
+      "accept_right": 0.7771,
+      "reject_when_absent": 0.0171,
+      "wrong_accept": 0.2143
+    },
+    {
+      "tau": 0.16,
+      "accept_right": 0.7771,
+      "reject_when_absent": 0.0257,
+      "wrong_accept": 0.2114
+    },
+    {
+      "tau": 0.165,
+      "accept_right": 0.7771,
+      "reject_when_absent": 0.0257,
+      "wrong_accept": 0.2114
+    },
+    {
+      "tau": 0.17,
+      "accept_right": 0.7771,
+      "reject_when_absent": 0.0314,
+      "wrong_accept": 0.2114
+    },
+    {
+      "tau": 0.175,
+      "accept_right": 0.7771,
+      "reject_when_absent": 0.0486,
+      "wrong_accept": 0.2086
+    },
+    {
+      "tau": 0.18,
+      "accept_right": 0.7771,
+      "reject_when_absent": 0.0514,
+      "wrong_accept": 0.2086
+    },
+    {
+      "tau": 0.185,
+      "accept_right": 0.7771,
+      "reject_when_absent": 0.06,
+      "wrong_accept": 0.2086
+    },
+    {
+      "tau": 0.19,
+      "accept_right": 0.7743,
+      "reject_when_absent": 0.0686,
+      "wrong_accept": 0.2086
+    },
+    {
+      "tau": 0.195,
+      "accept_right": 0.7743,
+      "reject_when_absent": 0.0743,
+      "wrong_accept": 0.2086
+    },
+    {
+      "tau": 0.2,
+      "accept_right": 0.7743,
+      "reject_when_absent": 0.0829,
+      "wrong_accept": 0.2086
+    },
+    {
+      "tau": 0.205,
+      "accept_right": 0.7743,
+      "reject_when_absent": 0.0914,
+      "wrong_accept": 0.2086
+    },
+    {
+      "tau": 0.21,
+      "accept_right": 0.7743,
+      "reject_when_absent": 0.1,
+      "wrong_accept": 0.2057
+    },
+    {
+      "tau": 0.215,
+      "accept_right": 0.7743,
+      "reject_when_absent": 0.1143,
+      "wrong_accept": 0.2029
+    },
+    {
+      "tau": 0.22,
+      "accept_right": 0.7743,
+      "reject_when_absent": 0.1257,
+      "wrong_accept": 0.2
+    },
+    {
+      "tau": 0.225,
+      "accept_right": 0.7714,
+      "reject_when_absent": 0.1343,
+      "wrong_accept": 0.1971
+    },
+    {
+      "tau": 0.23,
+      "accept_right": 0.7714,
+      "reject_when_absent": 0.14,
+      "wrong_accept": 0.1971
+    },
+    {
+      "tau": 0.235,
+      "accept_right": 0.7686,
+      "reject_when_absent": 0.1486,
+      "wrong_accept": 0.1971
+    },
+    {
+      "tau": 0.24,
+      "accept_right": 0.7686,
+      "reject_when_absent": 0.1514,
+      "wrong_accept": 0.1971
+    },
+    {
+      "tau": 0.245,
+      "accept_right": 0.7657,
+      "reject_when_absent": 0.1714,
+      "wrong_accept": 0.1943
+    },
+    {
+      "tau": 0.25,
+      "accept_right": 0.7657,
+      "reject_when_absent": 0.1743,
+      "wrong_accept": 0.1943
+    },
+    {
+      "tau": 0.255,
+      "accept_right": 0.7657,
+      "reject_when_absent": 0.1857,
+      "wrong_accept": 0.1943
+    },
+    {
+      "tau": 0.26,
+      "accept_right": 0.7657,
+      "reject_when_absent": 0.2,
+      "wrong_accept": 0.1943
+    },
+    {
+      "tau": 0.265,
+      "accept_right": 0.7629,
+      "reject_when_absent": 0.2114,
+      "wrong_accept": 0.1943
+    },
+    {
+      "tau": 0.27,
+      "accept_right": 0.7629,
+      "reject_when_absent": 0.2229,
+      "wrong_accept": 0.1943
+    },
+    {
+      "tau": 0.275,
+      "accept_right": 0.7543,
+      "reject_when_absent": 0.2457,
+      "wrong_accept": 0.1914
+    },
+    {
+      "tau": 0.28,
+      "accept_right": 0.7543,
+      "reject_when_absent": 0.2629,
+      "wrong_accept": 0.1914
+    },
+    {
+      "tau": 0.285,
+      "accept_right": 0.7543,
+      "reject_when_absent": 0.2657,
+      "wrong_accept": 0.1914
+    },
+    {
+      "tau": 0.29,
+      "accept_right": 0.7486,
+      "reject_when_absent": 0.2829,
+      "wrong_accept": 0.1886
+    },
+    {
+      "tau": 0.295,
+      "accept_right": 0.7429,
+      "reject_when_absent": 0.2971,
+      "wrong_accept": 0.1886
+    },
+    {
+      "tau": 0.3,
+      "accept_right": 0.74,
+      "reject_when_absent": 0.32,
+      "wrong_accept": 0.1829
+    },
+    {
+      "tau": 0.305,
+      "accept_right": 0.74,
+      "reject_when_absent": 0.3343,
+      "wrong_accept": 0.1771
+    },
+    {
+      "tau": 0.31,
+      "accept_right": 0.7343,
+      "reject_when_absent": 0.3486,
+      "wrong_accept": 0.1771
+    },
+    {
+      "tau": 0.315,
+      "accept_right": 0.7314,
+      "reject_when_absent": 0.3686,
+      "wrong_accept": 0.1771
+    },
+    {
+      "tau": 0.32,
+      "accept_right": 0.7314,
+      "reject_when_absent": 0.38,
+      "wrong_accept": 0.1771
+    },
+    {
+      "tau": 0.325,
+      "accept_right": 0.7286,
+      "reject_when_absent": 0.4086,
+      "wrong_accept": 0.1714
+    },
+    {
+      "tau": 0.33,
+      "accept_right": 0.7257,
+      "reject_when_absent": 0.4257,
+      "wrong_accept": 0.1686
+    },
+    {
+      "tau": 0.335,
+      "accept_right": 0.7143,
+      "reject_when_absent": 0.44,
+      "wrong_accept": 0.1686
+    },
+    {
+      "tau": 0.34,
+      "accept_right": 0.7114,
+      "reject_when_absent": 0.4657,
+      "wrong_accept": 0.1657
+    },
+    {
+      "tau": 0.345,
+      "accept_right": 0.7086,
+      "reject_when_absent": 0.4771,
+      "wrong_accept": 0.1657
+    },
+    {
+      "tau": 0.35,
+      "accept_right": 0.7057,
+      "reject_when_absent": 0.4971,
+      "wrong_accept": 0.16
+    },
+    {
+      "tau": 0.355,
+      "accept_right": 0.7029,
+      "reject_when_absent": 0.5171,
+      "wrong_accept": 0.1543
+    },
+    {
+      "tau": 0.36,
+      "accept_right": 0.6943,
+      "reject_when_absent": 0.5286,
+      "wrong_accept": 0.1486
+    },
+    {
+      "tau": 0.365,
+      "accept_right": 0.6829,
+      "reject_when_absent": 0.5429,
+      "wrong_accept": 0.1486
+    },
+    {
+      "tau": 0.37,
+      "accept_right": 0.6714,
+      "reject_when_absent": 0.56,
+      "wrong_accept": 0.1457
+    },
+    {
+      "tau": 0.375,
+      "accept_right": 0.6686,
+      "reject_when_absent": 0.5714,
+      "wrong_accept": 0.1457
+    },
+    {
+      "tau": 0.38,
+      "accept_right": 0.6686,
+      "reject_when_absent": 0.5943,
+      "wrong_accept": 0.1343
+    },
+    {
+      "tau": 0.385,
+      "accept_right": 0.6629,
+      "reject_when_absent": 0.6171,
+      "wrong_accept": 0.1257
+    },
+    {
+      "tau": 0.39,
+      "accept_right": 0.6514,
+      "reject_when_absent": 0.6314,
+      "wrong_accept": 0.1229
+    },
+    {
+      "tau": 0.395,
+      "accept_right": 0.6457,
+      "reject_when_absent": 0.6514,
+      "wrong_accept": 0.12
+    },
+    {
+      "tau": 0.4,
+      "accept_right": 0.6429,
+      "reject_when_absent": 0.6657,
+      "wrong_accept": 0.12
+    },
+    {
+      "tau": 0.405,
+      "accept_right": 0.6343,
+      "reject_when_absent": 0.6771,
+      "wrong_accept": 0.12
+    },
+    {
+      "tau": 0.41,
+      "accept_right": 0.6114,
+      "reject_when_absent": 0.7,
+      "wrong_accept": 0.1086
+    },
+    {
+      "tau": 0.415,
+      "accept_right": 0.6057,
+      "reject_when_absent": 0.72,
+      "wrong_accept": 0.1029
+    },
+    {
+      "tau": 0.42,
+      "accept_right": 0.6057,
+      "reject_when_absent": 0.7343,
+      "wrong_accept": 0.0971
+    },
+    {
+      "tau": 0.425,
+      "accept_right": 0.6029,
+      "reject_when_absent": 0.74,
+      "wrong_accept": 0.0971
+    },
+    {
+      "tau": 0.43,
+      "accept_right": 0.5886,
+      "reject_when_absent": 0.7543,
+      "wrong_accept": 0.0943
+    },
+    {
+      "tau": 0.435,
+      "accept_right": 0.5886,
+      "reject_when_absent": 0.7657,
+      "wrong_accept": 0.0914
+    },
+    {
+      "tau": 0.44,
+      "accept_right": 0.58,
+      "reject_when_absent": 0.7714,
+      "wrong_accept": 0.0914
+    },
+    {
+      "tau": 0.445,
+      "accept_right": 0.5771,
+      "reject_when_absent": 0.7886,
+      "wrong_accept": 0.0886
+    },
+    {
+      "tau": 0.45,
+      "accept_right": 0.5686,
+      "reject_when_absent": 0.8029,
+      "wrong_accept": 0.0829
+    },
+    {
+      "tau": 0.455,
+      "accept_right": 0.5486,
+      "reject_when_absent": 0.8114,
+      "wrong_accept": 0.08
+    },
+    {
+      "tau": 0.46,
+      "accept_right": 0.54,
+      "reject_when_absent": 0.8257,
+      "wrong_accept": 0.0743
+    },
+    {
+      "tau": 0.465,
+      "accept_right": 0.5343,
+      "reject_when_absent": 0.8371,
+      "wrong_accept": 0.0686
+    },
+    {
+      "tau": 0.47,
+      "accept_right": 0.52,
+      "reject_when_absent": 0.8429,
+      "wrong_accept": 0.0629
+    },
+    {
+      "tau": 0.475,
+      "accept_right": 0.5086,
+      "reject_when_absent": 0.8457,
+      "wrong_accept": 0.0629
+    },
+    {
+      "tau": 0.48,
+      "accept_right": 0.5,
+      "reject_when_absent": 0.8629,
+      "wrong_accept": 0.0543
+    },
+    {
+      "tau": 0.485,
+      "accept_right": 0.4914,
+      "reject_when_absent": 0.8686,
+      "wrong_accept": 0.0543
+    },
+    {
+      "tau": 0.49,
+      "accept_right": 0.4857,
+      "reject_when_absent": 0.8771,
+      "wrong_accept": 0.0486
+    },
+    {
+      "tau": 0.495,
+      "accept_right": 0.4686,
+      "reject_when_absent": 0.88,
+      "wrong_accept": 0.0486
+    },
+    {
+      "tau": 0.5,
+      "accept_right": 0.46,
+      "reject_when_absent": 0.8857,
+      "wrong_accept": 0.0457
+    },
+    {
+      "tau": 0.505,
+      "accept_right": 0.4457,
+      "reject_when_absent": 0.8914,
+      "wrong_accept": 0.0457
+    },
+    {
+      "tau": 0.51,
+      "accept_right": 0.4457,
+      "reject_when_absent": 0.9029,
+      "wrong_accept": 0.0371
+    },
+    {
+      "tau": 0.515,
+      "accept_right": 0.44,
+      "reject_when_absent": 0.9086,
+      "wrong_accept": 0.0371
+    },
+    {
+      "tau": 0.52,
+      "accept_right": 0.4257,
+      "reject_when_absent": 0.9143,
+      "wrong_accept": 0.0343
+    },
+    {
+      "tau": 0.525,
+      "accept_right": 0.4029,
+      "reject_when_absent": 0.9143,
+      "wrong_accept": 0.0343
+    },
+    {
+      "tau": 0.53,
+      "accept_right": 0.3914,
+      "reject_when_absent": 0.9229,
+      "wrong_accept": 0.0314
+    },
+    {
+      "tau": 0.535,
+      "accept_right": 0.3771,
+      "reject_when_absent": 0.9257,
+      "wrong_accept": 0.0286
+    },
+    {
+      "tau": 0.54,
+      "accept_right": 0.36,
+      "reject_when_absent": 0.9343,
+      "wrong_accept": 0.0229
+    },
+    {
+      "tau": 0.545,
+      "accept_right": 0.3514,
+      "reject_when_absent": 0.94,
+      "wrong_accept": 0.02
+    },
+    {
+      "tau": 0.55,
+      "accept_right": 0.3371,
+      "reject_when_absent": 0.9514,
+      "wrong_accept": 0.0171
+    },
+    {
+      "tau": 0.555,
+      "accept_right": 0.3257,
+      "reject_when_absent": 0.9543,
+      "wrong_accept": 0.0171
+    },
+    {
+      "tau": 0.56,
+      "accept_right": 0.3114,
+      "reject_when_absent": 0.96,
+      "wrong_accept": 0.0171
+    },
+    {
+      "tau": 0.565,
+      "accept_right": 0.2943,
+      "reject_when_absent": 0.96,
+      "wrong_accept": 0.0171
+    },
+    {
+      "tau": 0.57,
+      "accept_right": 0.2886,
+      "reject_when_absent": 0.9657,
+      "wrong_accept": 0.0143
+    },
+    {
+      "tau": 0.575,
+      "accept_right": 0.2771,
+      "reject_when_absent": 0.9686,
+      "wrong_accept": 0.0114
+    },
+    {
+      "tau": 0.58,
+      "accept_right": 0.2657,
+      "reject_when_absent": 0.9771,
+      "wrong_accept": 0.0114
+    },
+    {
+      "tau": 0.585,
+      "accept_right": 0.26,
+      "reject_when_absent": 0.98,
+      "wrong_accept": 0.0086
+    },
+    {
+      "tau": 0.59,
+      "accept_right": 0.2457,
+      "reject_when_absent": 0.9829,
+      "wrong_accept": 0.0057
+    },
+    {
+      "tau": 0.595,
+      "accept_right": 0.2314,
+      "reject_when_absent": 0.9886,
+      "wrong_accept": 0.0057
+    },
+    {
+      "tau": 0.6,
+      "accept_right": 0.2229,
+      "reject_when_absent": 0.9914,
+      "wrong_accept": 0.0057
+    },
+    {
+      "tau": 0.605,
+      "accept_right": 0.2114,
+      "reject_when_absent": 0.9914,
+      "wrong_accept": 0.0057
+    },
+    {
+      "tau": 0.61,
+      "accept_right": 0.2114,
+      "reject_when_absent": 0.9914,
+      "wrong_accept": 0.0057
+    },
+    {
+      "tau": 0.615,
+      "accept_right": 0.1943,
+      "reject_when_absent": 0.9914,
+      "wrong_accept": 0.0057
+    },
+    {
+      "tau": 0.62,
+      "accept_right": 0.1857,
+      "reject_when_absent": 0.9914,
+      "wrong_accept": 0.0057
+    },
+    {
+      "tau": 0.625,
+      "accept_right": 0.1743,
+      "reject_when_absent": 0.9914,
+      "wrong_accept": 0.0057
+    },
+    {
+      "tau": 0.63,
+      "accept_right": 0.16,
+      "reject_when_absent": 0.9914,
+      "wrong_accept": 0.0057
+    },
+    {
+      "tau": 0.635,
+      "accept_right": 0.1543,
+      "reject_when_absent": 0.9914,
+      "wrong_accept": 0.0057
+    },
+    {
+      "tau": 0.64,
+      "accept_right": 0.1486,
+      "reject_when_absent": 0.9914,
+      "wrong_accept": 0.0057
+    },
+    {
+      "tau": 0.645,
+      "accept_right": 0.1343,
+      "reject_when_absent": 0.9914,
+      "wrong_accept": 0.0057
+    },
+    {
+      "tau": 0.65,
+      "accept_right": 0.1229,
+      "reject_when_absent": 0.9914,
+      "wrong_accept": 0.0057
+    },
+    {
+      "tau": 0.655,
+      "accept_right": 0.1086,
+      "reject_when_absent": 0.9914,
+      "wrong_accept": 0.0057
+    },
+    {
+      "tau": 0.66,
+      "accept_right": 0.1029,
+      "reject_when_absent": 0.9943,
+      "wrong_accept": 0.0029
+    },
+    {
+      "tau": 0.665,
+      "accept_right": 0.0943,
+      "reject_when_absent": 0.9943,
+      "wrong_accept": 0.0029
+    },
+    {
+      "tau": 0.67,
+      "accept_right": 0.0886,
+      "reject_when_absent": 0.9943,
+      "wrong_accept": 0.0029
+    },
+    {
+      "tau": 0.675,
+      "accept_right": 0.0829,
+      "reject_when_absent": 0.9943,
+      "wrong_accept": 0.0029
+    },
+    {
+      "tau": 0.68,
+      "accept_right": 0.0829,
+      "reject_when_absent": 0.9971,
+      "wrong_accept": 0.0
+    },
+    {
+      "tau": 0.685,
+      "accept_right": 0.0714,
+      "reject_when_absent": 1.0,
+      "wrong_accept": 0.0
+    },
+    {
+      "tau": 0.69,
+      "accept_right": 0.0657,
+      "reject_when_absent": 1.0,
+      "wrong_accept": 0.0
+    },
+    {
+      "tau": 0.695,
+      "accept_right": 0.0629,
+      "reject_when_absent": 1.0,
+      "wrong_accept": 0.0
+    },
+    {
+      "tau": 0.7,
+      "accept_right": 0.06,
+      "reject_when_absent": 1.0,
+      "wrong_accept": 0.0
+    },
+    {
+      "tau": 0.705,
+      "accept_right": 0.0571,
+      "reject_when_absent": 1.0,
+      "wrong_accept": 0.0
+    },
+    {
+      "tau": 0.71,
+      "accept_right": 0.0514,
+      "reject_when_absent": 1.0,
+      "wrong_accept": 0.0
+    },
+    {
+      "tau": 0.715,
+      "accept_right": 0.0514,
+      "reject_when_absent": 1.0,
+      "wrong_accept": 0.0
+    },
+    {
+      "tau": 0.72,
+      "accept_right": 0.0486,
+      "reject_when_absent": 1.0,
+      "wrong_accept": 0.0
+    },
+    {
+      "tau": 0.725,
+      "accept_right": 0.0486,
+      "reject_when_absent": 1.0,
+      "wrong_accept": 0.0
+    },
+    {
+      "tau": 0.73,
+      "accept_right": 0.04,
+      "reject_when_absent": 1.0,
+      "wrong_accept": 0.0
+    },
+    {
+      "tau": 0.735,
+      "accept_right": 0.0343,
+      "reject_when_absent": 1.0,
+      "wrong_accept": 0.0
+    },
+    {
+      "tau": 0.74,
+      "accept_right": 0.0286,
+      "reject_when_absent": 1.0,
+      "wrong_accept": 0.0
+    },
+    {
+      "tau": 0.745,
+      "accept_right": 0.0257,
+      "reject_when_absent": 1.0,
+      "wrong_accept": 0.0
+    },
+    {
+      "tau": 0.75,
+      "accept_right": 0.02,
+      "reject_when_absent": 1.0,
+      "wrong_accept": 0.0
+    },
+    {
+      "tau": 0.755,
+      "accept_right": 0.02,
+      "reject_when_absent": 1.0,
+      "wrong_accept": 0.0
+    },
+    {
+      "tau": 0.76,
+      "accept_right": 0.0143,
+      "reject_when_absent": 1.0,
+      "wrong_accept": 0.0
+    },
+    {
+      "tau": 0.765,
+      "accept_right": 0.0143,
+      "reject_when_absent": 1.0,
+      "wrong_accept": 0.0
+    },
+    {
+      "tau": 0.77,
+      "accept_right": 0.0143,
+      "reject_when_absent": 1.0,
+      "wrong_accept": 0.0
+    },
+    {
+      "tau": 0.775,
+      "accept_right": 0.0143,
+      "reject_when_absent": 1.0,
+      "wrong_accept": 0.0
+    },
+    {
+      "tau": 0.78,
+      "accept_right": 0.0114,
+      "reject_when_absent": 1.0,
+      "wrong_accept": 0.0
+    },
+    {
+      "tau": 0.785,
+      "accept_right": 0.0086,
+      "reject_when_absent": 1.0,
+      "wrong_accept": 0.0
+    },
+    {
+      "tau": 0.79,
+      "accept_right": 0.0086,
+      "reject_when_absent": 1.0,
+      "wrong_accept": 0.0
+    },
+    {
+      "tau": 0.795,
+      "accept_right": 0.0086,
+      "reject_when_absent": 1.0,
+      "wrong_accept": 0.0
+    }
+  ]
 }

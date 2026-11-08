@@ -1,9 +1,8 @@
-"""Cost of a handover in the control plane: incremental S-FIB update vs a full re-advertisement.
+"""Cost of mobility in the control plane.
 
-For each network size we count the S-FIB messages that handovers trigger
-(withdraw at the old cell + announce at the new cell, only where a summary
-changes) and compare them with one full advertisement round, i.e. what a
-naive scheme would re-flood after every move.
+For each network size we measure, per second and per handover, what the S-FIB
+updates cost and put that next to two reference points: the periodic refresh
+of the same network and the update traffic of a replicated registry.
 
 Written with AI assistance (experiment tooling).
 """
@@ -18,6 +17,13 @@ from agentroute.config import RESULTS, load_config  # noqa: E402
 from agentroute.sim.simulator import Simulator  # noqa: E402
 
 
+def run(method, n, seed):
+    cfg = load_config(overrides={"agents": {"n_agents": n, "speed_mps": 5.0}})
+    sim = Simulator(cfg, method, seed=seed)
+    s = sim.run()
+    return sim, s, cfg["sim"]["duration_s"]
+
+
 def main():
     quick = "--quick" in sys.argv
     sizes = [1000] if quick else [1000, 3000, 10000]
@@ -26,20 +32,25 @@ def main():
     for n in sizes:
         rows = []
         for seed in seeds:
-            cfg = load_config(overrides={"agents": {"n_agents": n, "speed_mps": 5.0}})
-            sim = Simulator(cfg, "greedy", seed=seed)
-            s = sim.run()
-            full_round, _ = sim.adv.periodic_messages()
-            rows.append({"handovers": s["handovers"], "update_msgs": s["update_msgs"],
-                         "full_round": full_round, "routers": s["n_routers"]})
-        ho = sum(r["handovers"] for r in rows)
+            sim, s, dur = run("greedy", n, seed)
+            full_msgs, full_bytes = sim.adv.round_cost()
+            reg_sim, reg, _ = run("registry3", n, seed)
+            rows.append({"ho": s["handovers"], "upd": s["update_msgs"], "routers": s["n_routers"],
+                         "full_msgs": full_msgs, "full_kB": full_bytes / 1000.0, "dur": dur,
+                         "delta_B": sim.adv.delta_bytes()})
+        ho = sum(r["ho"] for r in rows)
+        dur, period = rows[0]["dur"], 10.0
+        upd_per_s = sum(r["upd"] for r in rows) / len(rows) / dur
+        full_per_s = sum(r["full_msgs"] for r in rows) / len(rows) / period
         out[str(n)] = {
             "routers": rows[0]["routers"],
-            "handovers_per_s": round(ho / len(rows) / cfg["sim"]["duration_s"], 1),
-            "msgs_per_handover": round(sum(r["update_msgs"] for r in rows) / max(ho, 1), 1),
-            "full_round_msgs": round(sum(r["full_round"] for r in rows) / len(rows)),
+            "handovers_per_s": round(ho / len(rows) / dur, 1),
+            "msgs_per_handover": round(sum(r["upd"] for r in rows) / max(ho, 1), 2),
+            "handover_msgs_per_s": round(upd_per_s, 1),
+            "handover_kB_per_s": round(upd_per_s * rows[0]["delta_B"] / 1000.0, 1),
+            "refresh_msgs_per_s": round(full_per_s, 1),
+            "refresh_kB_per_s": round(sum(r["full_kB"] for r in rows) / len(rows) / period, 1),
         }
-        out[str(n)]["share_of_full_round"] = round(out[str(n)]["msgs_per_handover"] / out[str(n)]["full_round_msgs"], 4)
         print(n, out[str(n)], flush=True)
     path = RESULTS / "raw" / ("handover_cost_quick.json" if quick else "handover_cost.json")
     path.write_text(json.dumps(out, indent=2))

@@ -5,12 +5,14 @@
 CSE 476/575 Mobile Communication Networks dönem projesi.
 Ekip: Ömer Faruk Gedikli, Bekir Emre Sarıpınar, Bekir Göktepe.
 
-- **Capability address:** agent'ın yetenek kartı MiniLM ile 384 boyutlu bir vektöre çevrilir.
-- **Semantic FIB (S-FIB):** her router, komşu başına o komşunun arkasındaki yeteneklerin k-means özetini tutar. Tablolar R hop ile sınırlı duyurularla dolar.
-- **Intent-based forwarding:** görev paketi bir intent embedding taşır ve en iyi eşleşen komşuya iletilir.
-- **Learned next hop:** tüm router'ların paylaştığı bir Double DQN (ve bir GNN varyantı) komşuları benzerlik, kuyruk, link kalitesi ve handover bilgisine göre puanlar.
-- **Mobilite:** handover'da sadece eski ve yeni hücrenin R-hop çevresi güncellenir.
-- **Karşılaştırma:** merkezi registry, TTL-limited flooding, Chord (exact match) ve greedy semantic forwarding ile.
+Bu **v2** sürümüdür. İlk sürüm git'te `v1` etiketiyle duruyor. v2'de neyin neden değiştiği: [docs/NASIL_YAPTIK.md](docs/NASIL_YAPTIK.md), bölüm 7.
+
+- **Capability address:** her agent'ın kendi yetenek vektörü vardır (MiniLM, 384 boyut, kendi cümle karışımı).
+- **Semantic FIB (S-FIB):** router'lar birbirine sadece özet gönderir (distance-vector). Yakındaki agent'lar kendi satırını tutar, uzaktakiler k = 8 temsilciye sıkıştırılır. Duyurular R hop ile sınırlı.
+- **Intent-based forwarding:** görev paketi bir intent embedding taşır. Router, daha iyi bir aday bilmiyorsa işi yerel agent'a verir, biliyorsa en iyi eşleşen komşuya iletir.
+- **Learned next hop:** tüm router'ların paylaştığı bir Double DQN (ve bir GNN varyantı) "burada teslim et" ya da "şu komşuya ilet" kararını verir.
+- **Mobilite:** handover'da eski ve yeni hücre R hop içinde güncelleme gönderir, ve bir router güncellemeyi sadece özeti gerçekten değiştiyse iletir.
+- **Karşılaştırma:** greedy, yük duyarlı greedy, SPFR tarzı kural, TTL-limited flooding, tek sunuculu ve üç replikalı registry, semantik DHT ve Chord (exact match).
 
 ## Hızlı başlangıç
 

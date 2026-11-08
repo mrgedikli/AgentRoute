@@ -24,6 +24,7 @@ agents:
   mobile_fraction: 0.5      # random-waypoint UEs
   cloud_fraction: 0.1       # agents hosted in the cloud node
   class_zipf: 1.0           # capability supply ~ Zipf(s); 0 = uniform
+  card_alpha: 2.0           # each agent mixes its class's sentences ~ Dirichlet(alpha)
   speed_mps: 5.0
   pause_s: 2.0
   hysteresis: 0.15          # switch cell only if the new gNB is 15% closer
@@ -42,9 +43,12 @@ routers:
   hello_s: 0.1              # neighbour state (queue, handover) is refreshed this often
 
 sfib:
-  radius: 3
-  summary: kmeans           # kmeans | mean | exact
-  k: 4
+  radius: 2
+  summary: kmeans           # kmeans | medoid | mean | exact
+  k: 8
+  exact_hops: 1             # agents this close keep their own row (0 = summaries only)
+  encoding: int8            # float32 | int8, representatives in advertisements
+  change_threshold: 0.01    # a handover message travels on only if a representative moves more
   refresh_s: 10.0
   failure_detect_s: 1.0
   handover_window_s: 2.0    # a gNB is flagged "in handover" for this long
@@ -52,7 +56,10 @@ sfib:
 forwarding:
   ttl: 16
   tau: null                 # null -> read results/tau.json (experiments/tune_tau.py)
-  header: float32           # float32 | int8 | binary
+  header: int8              # float32 | int8 | binary
+  accept: best_known        # first (v1) | best_known
+  omega: 0.08               # attenuation per hop of a remote candidate (SPFR's value)
+  load_band: 0.05           # greedy_load: neighbours this close to the best count as equal
 
 sim:
   duration_s: 30.0
@@ -64,9 +71,15 @@ sim:
 
 baselines:
   flood_ttl: 6
-  registry_service_ms: 1.0
+  flood_window_s: 0.2       # how long the requester collects answers
+  registry_service_ms: 1.0  # one lookup (a vector search)
+  registry_update_ms: 0.05  # one registration or heartbeat (a table write)
   registry_queue_limit: 200
+  registry3_replicas: 3
   chord_bits: 32
+  sdht_buckets: 64          # semantic DHT: size of the public capability catalogue
+  sdht_nprobe: 2            # how many catalogue entries a request looks up
+  spfr_radius: 2            # SPFR's control horizon
 
 dqn:
   model_path: results/models/dqn.pt

@@ -5,10 +5,12 @@ mobility speed, load, failures, radius), so the shared network sees many
 different situations. Training uses the *train* paraphrases only; the test
 paraphrases are kept for the evaluation experiments.
 
-Every `eval_every` episodes the greedy (epsilon = 0) policy is evaluated on
-fixed validation scenarios and the best weights are kept.
+Every `eval_every` episodes the policy is evaluated without exploration on
+fixed validation scenarios and the best weights are kept. v2 computes the same
+return for greedy and for load-aware greedy on the same scenarios, so the
+learning curve can be read against both.
 
-Responsible: Bekir Göktepe
+Responsible: Bekir Göktepe (v2 revision written with AI assistance)
 """
 import copy
 import csv
@@ -22,7 +24,7 @@ import torch.nn.functional as F
 from agentroute.config import ROOT, deep_update, load_config, seed_everything
 from agentroute.dqn.policy import DQNPolicy, build_model
 from agentroute.dqn.replay import ReplayBuffer
-from agentroute.forwarding import N_FEATURES, GreedyPolicy
+from agentroute.forwarding import N_FEATURES, GreedyPolicy, LoadAwareGreedy
 from agentroute.sim.simulator import Simulator
 
 
@@ -82,26 +84,21 @@ VALIDATION = [
 ]
 
 
-def evaluate(policy, base_cfg, seeds=(9001, 9002)):
+def evaluate(policy, method, base_cfg, seeds=(9001, 9002, 9003)):
     """Validation on fixed scenarios (train intents).
 
-    Returns (success rate, completion time in ms, return per request). The
-    return is only defined for the DQN; for greedy it is NaN.
+    Returns (success rate, completion time in ms, return per request).
     """
     rates, times, returns = [], [], []
     for scen in VALIDATION:
         for seed in seeds:
             cfg = deep_update(copy.deepcopy(base_cfg), scen)
-            method = "greedy" if isinstance(policy, GreedyPolicy) else "agentroute"
-            if method == "agentroute":
-                policy.episode_return = 0.0
+            policy.episode_return = 0.0
             s = Simulator(cfg, method, seed=seed, policy=policy, intents="train").run()
             rates.append(s["success_rate"])
             times.append(s["time_ms"])
-            if method == "agentroute":
-                returns.append(policy.episode_return / max(s["n_queries"], 1))
-    ret = float(np.mean(returns)) if returns else float("nan")
-    return float(np.mean(rates)), float(np.nanmean(times)), ret
+            returns.append(policy.episode_return / max(s["n_queries"], 1))
+    return float(np.mean(rates)), float(np.nanmean(times)), float(np.mean(returns))
 
 
 def train(kind="mlp", episodes=None, config_path=None, out_csv=None, verbose=True):
@@ -118,7 +115,8 @@ def train(kind="mlp", episodes=None, config_path=None, out_csv=None, verbose=Tru
     out_csv = Path(out_csv or ROOT / "results" / "raw" / f"train_{kind}.csv")
     out_csv.parent.mkdir(parents=True, exist_ok=True)
 
-    greedy_val = evaluate(GreedyPolicy(), base)
+    greedy_val = evaluate(GreedyPolicy(dqn["reward"]), "greedy", base)
+    load_val = evaluate(LoadAwareGreedy(base["forwarding"]["load_band"], dqn["reward"]), "greedy_load", base)
     best_val = -1e9
     rows = []
     decay_eps = max(1, int(dqn["eps_decay_frac"] * episodes))
@@ -136,11 +134,12 @@ def train(kind="mlp", episodes=None, config_path=None, out_csv=None, verbose=Tru
                "loss": float(np.mean(learner.losses[n_losses:])) if len(learner.losses) > n_losses else float("nan"),
                "n_agents": cfg["agents"]["n_agents"], "val_success": float("nan"),
                "val_time_ms": float("nan"), "val_return": float("nan"),
-               "greedy_val_success": greedy_val[0],
-               "greedy_val_time_ms": greedy_val[1]}
+               "greedy_val_success": greedy_val[0], "greedy_val_time_ms": greedy_val[1],
+               "greedy_val_return": greedy_val[2], "load_val_success": load_val[0],
+               "load_val_time_ms": load_val[1], "load_val_return": load_val[2]}
         if (ep + 1) % dqn["eval_every"] == 0 or ep == episodes - 1:
             policy.epsilon, policy.learner = 0.0, None
-            val_rate, val_time, val_ret = evaluate(policy, base)
+            val_rate, val_time, val_ret = evaluate(policy, "agentroute", base)
             row["val_success"], row["val_time_ms"], row["val_return"] = val_rate, val_time, val_ret
             if val_ret > best_val:      # keep the weights with the best validation return
                 best_val = val_ret
@@ -150,7 +149,7 @@ def train(kind="mlp", episodes=None, config_path=None, out_csv=None, verbose=Tru
             print(f"[{kind}] ep {ep:3d} eps={eps:.2f} succ={s['success_rate']:.3f} "
                   f"ret/q={row['return_per_query']:.3f} loss={row['loss']:.4f} "
                   f"val={row['val_success']:.3f}/{row['val_time_ms']:.1f}ms "
-                  f"(greedy {greedy_val[0]:.3f}/{greedy_val[1]:.1f}ms) "
+                  f"(greedy {greedy_val[0]:.3f}/{greedy_val[2]:.3f}, load {load_val[0]:.3f}/{load_val[2]:.3f}) "
                   f"[{time.time() - t_start:.0f}s]", flush=True)
         with open(out_csv, "w", newline="") as f:
             w = csv.DictWriter(f, fieldnames=list(rows[0].keys()))

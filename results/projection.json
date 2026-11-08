@@ -1,0 +1,36 @@
+{
+  "sentence-transformers/all-MiniLM-L6-v2": {
+    "base_test_top1": 0.7733,
+    "penalty": {
+      "0.3": {
+        "seen_classes": 0.78,
+        "unseen_classes": 0.7667
+      },
+      "0.1": {
+        "seen_classes": 0.8,
+        "unseen_classes": 0.7733
+      },
+      "0.03": {
+        "seen_classes": 0.7933,
+        "unseen_classes": 0.7733
+      }
+    }
+  },
+  "BAAI/bge-small-en-v1.5": {
+    "base_test_top1": 0.7733,
+    "penalty": {
+      "0.3": {
+        "seen_classes": 0.8267,
+        "unseen_classes": 0.8067
+      },
+      "0.1": {
+        "seen_classes": 0.82,
+        "unseen_classes": 0.8
+      },
+      "0.03": {
+        "seen_classes": 0.8133,
+        "unseen_classes": 0.7867
+      }
+    }
+  }
+}

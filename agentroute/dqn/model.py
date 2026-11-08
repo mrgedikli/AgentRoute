@@ -1,9 +1,9 @@
 """Q-network shared by all routers.
 
 The number of neighbours differs from router to router, so the network does
-not output one Q-value per action. Instead it scores each neighbour on its
-own: input = the feature vector of one neighbour, output = one Q-value. The
-action is the neighbour with the highest score.
+not output one Q-value per action. Instead it scores each action on its own:
+input = the feature vector of one action (a neighbour, or "deliver here"),
+output = one Q-value. The action with the highest score is taken.
 
 Batches are padded to a fixed maximum degree; `mask` marks real neighbours.
 

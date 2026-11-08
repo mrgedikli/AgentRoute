@@ -1,0 +1,293 @@
+{
+  "1000 agents, load 1": {
+    "agentroute vs greedy": {
+      "both_delivered": 1611,
+      "time_ms": [
+        19.72,
+        20.25
+      ],
+      "hops": [
+        1.99,
+        1.93
+      ],
+      "median_time_diff_ms": 0.0,
+      "only_first_delivered": 159,
+      "only_second_delivered": 88,
+      "success_diff_points": 2.54,
+      "success_diff_ci95": [
+        1.42,
+        3.69
+      ]
+    },
+    "agentroute vs greedy_load": {
+      "both_delivered": 1592,
+      "time_ms": [
+        19.77,
+        19.31
+      ],
+      "hops": [
+        1.99,
+        2.14
+      ],
+      "median_time_diff_ms": 0.0,
+      "only_first_delivered": 178,
+      "only_second_delivered": 81,
+      "success_diff_points": 3.48,
+      "success_diff_ci95": [
+        2.6,
+        4.38
+      ]
+    },
+    "agentroute vs spfr": {
+      "both_delivered": 1675,
+      "time_ms": [
+        20.34,
+        20.44
+      ],
+      "hops": [
+        2.11,
+        1.59
+      ],
+      "median_time_diff_ms": 0.0,
+      "only_first_delivered": 95,
+      "only_second_delivered": 130,
+      "success_diff_points": -1.22,
+      "success_diff_ci95": [
+        -2.16,
+        -0.24
+      ]
+    },
+    "agentroute_gnn vs agentroute": {
+      "both_delivered": 1677,
+      "time_ms": [
+        20.79,
+        20.29
+      ],
+      "hops": [
+        1.99,
+        2.08
+      ],
+      "median_time_diff_ms": 0.0,
+      "only_first_delivered": 119,
+      "only_second_delivered": 93,
+      "success_diff_points": 0.91,
+      "success_diff_ci95": [
+        0.08,
+        1.7
+      ]
+    },
+    "greedy_load vs greedy": {
+      "both_delivered": 1590,
+      "time_ms": [
+        18.9,
+        19.87
+      ],
+      "hops": [
+        2.06,
+        1.87
+      ],
+      "median_time_diff_ms": 0.0,
+      "only_first_delivered": 83,
+      "only_second_delivered": 109,
+      "success_diff_points": -0.94,
+      "success_diff_ci95": [
+        -1.69,
+        -0.15
+      ]
+    }
+  },
+  "1000 agents, load 4": {
+    "agentroute vs greedy": {
+      "both_delivered": 6213,
+      "time_ms": [
+        29.5,
+        29.67
+      ],
+      "hops": [
+        1.82,
+        1.79
+      ],
+      "median_time_diff_ms": 0.32,
+      "only_first_delivered": 693,
+      "only_second_delivered": 420,
+      "success_diff_points": 2.42,
+      "success_diff_ci95": [
+        2.09,
+        2.73
+      ]
+    },
+    "agentroute vs greedy_load": {
+      "both_delivered": 6146,
+      "time_ms": [
+        29.32,
+        29.2
+      ],
+      "hops": [
+        1.81,
+        1.97
+      ],
+      "median_time_diff_ms": 0.75,
+      "only_first_delivered": 760,
+      "only_second_delivered": 460,
+      "success_diff_points": 2.67,
+      "success_diff_ci95": [
+        2.04,
+        3.27
+      ]
+    },
+    "agentroute vs spfr": {
+      "both_delivered": 6442,
+      "time_ms": [
+        30.48,
+        28.98
+      ],
+      "hops": [
+        1.91,
+        1.54
+      ],
+      "median_time_diff_ms": 0.74,
+      "only_first_delivered": 464,
+      "only_second_delivered": 648,
+      "success_diff_points": -1.63,
+      "success_diff_ci95": [
+        -2.25,
+        -1.1
+      ]
+    },
+    "agentroute_gnn vs agentroute": {
+      "both_delivered": 6420,
+      "time_ms": [
+        30.75,
+        30.26
+      ],
+      "hops": [
+        1.87,
+        1.89
+      ],
+      "median_time_diff_ms": 0.0,
+      "only_first_delivered": 525,
+      "only_second_delivered": 486,
+      "success_diff_points": 0.33,
+      "success_diff_ci95": [
+        -0.2,
+        0.84
+      ]
+    },
+    "greedy_load vs greedy": {
+      "both_delivered": 6132,
+      "time_ms": [
+        28.87,
+        29.19
+      ],
+      "hops": [
+        1.94,
+        1.74
+      ],
+      "median_time_diff_ms": -0.14,
+      "only_first_delivered": 474,
+      "only_second_delivered": 501,
+      "success_diff_points": -0.25,
+      "success_diff_ci95": [
+        -0.66,
+        0.2
+      ]
+    }
+  },
+  "10000 agents, load 1": {
+    "agentroute vs greedy": {
+      "both_delivered": 1728,
+      "time_ms": [
+        17.41,
+        17.56
+      ],
+      "hops": [
+        1.65,
+        1.54
+      ],
+      "median_time_diff_ms": 0.0,
+      "only_first_delivered": 143,
+      "only_second_delivered": 81,
+      "success_diff_points": 2.21,
+      "success_diff_ci95": [
+        1.16,
+        3.43
+      ]
+    },
+    "agentroute vs greedy_load": {
+      "both_delivered": 1704,
+      "time_ms": [
+        17.28,
+        16.31
+      ],
+      "hops": [
+        1.61,
+        1.64
+      ],
+      "median_time_diff_ms": 0.0,
+      "only_first_delivered": 167,
+      "only_second_delivered": 83,
+      "success_diff_points": 2.99,
+      "success_diff_ci95": [
+        1.94,
+        4.03
+      ]
+    },
+    "agentroute vs spfr": {
+      "both_delivered": 1779,
+      "time_ms": [
+        17.7,
+        18.36
+      ],
+      "hops": [
+        1.72,
+        1.4
+      ],
+      "median_time_diff_ms": 0.0,
+      "only_first_delivered": 92,
+      "only_second_delivered": 146,
+      "success_diff_points": -1.94,
+      "success_diff_ci95": [
+        -3.02,
+        -0.6
+      ]
+    },
+    "agentroute_gnn vs agentroute": {
+      "both_delivered": 1790,
+      "time_ms": [
+        18.11,
+        17.73
+      ],
+      "hops": [
+        1.66,
+        1.71
+      ],
+      "median_time_diff_ms": 0.0,
+      "only_first_delivered": 94,
+      "only_second_delivered": 81,
+      "success_diff_points": 0.43,
+      "success_diff_ci95": [
+        -0.45,
+        1.25
+      ]
+    },
+    "greedy_load vs greedy": {
+      "both_delivered": 1705,
+      "time_ms": [
+        16.17,
+        17.08
+      ],
+      "hops": [
+        1.58,
+        1.47
+      ],
+      "median_time_diff_ms": 0.0,
+      "only_first_delivered": 82,
+      "only_second_delivered": 104,
+      "success_diff_points": -0.77,
+      "success_diff_ci95": [
+        -1.75,
+        0.17
+      ]
+    }
+  }
+}

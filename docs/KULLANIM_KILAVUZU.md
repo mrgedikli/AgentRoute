@@ -71,7 +71,13 @@ Model zaten eğitildiyse eğitimi atlamak için `--skip-train` ekle. `--workers 
 python experiments/tune_tau.py
 ```
 
-Train parafrazları üzerinde F1'i en yüksek yapan τ'yu seçer ve `results/tau.json` dosyasına yazar. Simülatör τ'yu buradan okur. Aynı dosyada test kümesi için top-1 doğruluk ve yanlış kabul oranı da var.
+Train parafrazları üzerinde beklenen değeri en yüksek yapan τ'yu seçer (doğru agent +1, yanlış agent −1, hiçbir şey 0) ve `results/tau.json` dosyasına yazar. Simülatör τ'yu buradan okur. Aynı dosyada test kümesi sonuçları da var.
+
+Encoder karşılaştırması ayrı bir script'tir ve sonucu `results/encoders.json` dosyasına yazar:
+
+```bash
+python experiments/compare_encoders.py
+```
 
 ### 4.2 DQN ve GNN eğitimi
 
@@ -88,7 +94,7 @@ python experiments/run_train.py
 - `results/models/dqn.pt`, `results/models/gnn.pt`: en iyi doğrulama getirisine sahip ağırlıklar
 - `results/raw/train_mlp.csv`, `results/raw/train_gnn.csv`: öğrenme eğrisi verisi
 
-Süre: MLP ≈ 20 dk, GNN ≈ 30 dk (M2). İkisini ayrı terminallerde paralel çalıştırmak süreyi kısaltır.
+Süre: MLP ve GNN her biri ≈ 45–60 dk (M2). İkisini ayrı terminallerde paralel çalıştırmak süreyi kısaltır.
 
 ### 4.3 Deneyler
 
@@ -97,14 +103,17 @@ Her script bir parametreyi tarar, her (değer, yöntem, seed) için bir simülas
 | Script | Taranan parametre | Çıktı |
 |---|---|---|
 | `experiments/run_scale.py` | agent sayısı 100 → 10.000 | `scale.csv` |
-| `experiments/run_mobility.py` | mobil agent hızı 0–30 m/s | `mobility.csv` |
+| `experiments/run_mobility.py` | mobil agent hızı 0–30 m/s, 500 m ve 150 m hücre | `mobility.csv`, `mobility_small.csv` |
 | `experiments/run_failure.py` | çöken router oranı 0–%30 | `failure.csv` |
 | `experiments/run_radius.py` | duyuru yarıçapı R = 1–6 | `radius.csv` |
 | `experiments/run_load.py` | yük çarpanı 0.5–4 | `load.csv` |
-| `experiments/run_ablation.py` | S-FIB özeti (mean / k / exact) ve intent header (float32 / int8 / binary) | `ablation_summary.csv`, `ablation_header.csv` |
-| `experiments/run_handover_cost.py` | handover başına S-FIB mesajı vs tam duyuru turu (1.000 / 3.000 / 10.000 agent) | `handover_cost.json` |
+| `experiments/run_rate.py` | istek hızı 1–300/s (toplam trafik) | `rate.csv` |
+| `experiments/run_tau.py` | kabul eşiği τ | `tau.csv` |
+| `experiments/run_ablation.py` | S-FIB içeriği, intent header, kabul kuralı, handover eşiği, flooding penceresi | `ablation_*.csv` |
+| `experiments/run_matched.py` | aynı istekler üzerinde eşleştirilmiş karşılaştırma ve güven aralığı | `matched.json` |
+| `experiments/run_handover_cost.py` | handover trafiği vs periyodik yenileme (1.000 / 3.000 / 10.000 agent) | `handover_cost.json` |
 
-Yöntem adları: `agentroute` (DQN), `agentroute_gnn`, `greedy`, `flooding`, `registry`, `chord`.
+Yöntem adları: `agentroute` (DQN), `agentroute_gnn`, `greedy`, `greedy_load` (yük duyarlı greedy), `spfr` (SPFR tarzı), `flooding`, `registry` (tek sunucu), `registry3` (üç replika), `sdht` (semantik DHT), `chord` (tam eşleşme).
 
 ### 4.4 Grafikler
 
@@ -118,14 +127,18 @@ python viz/plots.py
 |---|---|
 | `similarity` | Parafraz isteklerin yeteneklere cosine benzerliği, τ çizgisi |
 | `scale_success` | Agent sayısı vs başarı oranı |
-| `scale_overhead` | Agent sayısı vs istek başına mesaj (log ölçek) |
+| `scale_overhead` | Agent sayısı vs saniye başına kontrol trafiği ve istek başına sorgu trafiği (log ölçek) |
 | `scale_hops_time` | Agent sayısı vs hop sayısı ve tamamlanma süresi |
-| `mobility_success` | Hız vs başarı |
+| `mobility_success`, `mobility_small_success` | Hız vs başarı (500 m ve 150 m hücre) |
+| `mobility_cost` | Hız vs kontrol trafiği |
+| `rate_crossover` | İstek hızı vs toplam trafik |
+| `tau_tradeoff` | τ'ya göre başarı ve yanlış teslim |
+| `matched` | DQN'in rakiplerle eşleştirilmiş farkı (güven aralığıyla) |
 | `failure_success` | Çöken router oranı vs başarı |
-| `radius` | R vs başarı ve kontrol mesajı |
+| `radius` | R vs başarı ve kontrol trafiği |
 | `load` | Yük vs başarı ve süre |
-| `learning_curve` | DQN/GNN eğitim getirisi ve doğrulama başarısı |
-| `ablation_summary` | S-FIB özet türünün etkisi |
+| `learning_curve` | DQN/GNN doğrulama getirisi ve başarısı, greedy ve yük duyarlı greedy çizgileriyle |
+| `ablation_summary` | S-FIB içeriğinin başarıya ve kontrol trafiğine etkisi |
 | `ablation_header` | Header sıkıştırmanın etkisi |
 | `drop_reasons` | İsteklerin neden başarısız olduğu (1.000 agent) |
 
@@ -143,7 +156,7 @@ python viz/animate.py
 
 İki video üretir (`results/figures/`):
 - `agentroute_demo.mp4` / `.gif`: duyurular → bir isteğin hop hop yolculuğu → bir telefonun hücre değiştirmesi.
-- `greedy_vs_agentroute.mp4` / `.gif`: aynı istek, aynı ağ, solda greedy sağda DQN. Sadece logda DQN'in gerçekten daha iyi olduğu bir istek varsa üretilir, sahnelenmez.
+- `greedy_vs_agentroute.mp4` / `.gif`: aynı istek, aynı ağ, solda greedy sağda DQN. **Seçilmiş bir örnektir:** logdan DQN'in daha iyi olduğu bir istek alınır ve videonun başlığında böyle yazar. Ortalamayı değil, farklı bir kararın neye benzediğini gösterir.
 
 Sadece birini üretmek için `--only demo` ya da `--only compare` kullanılır. MP4 için `imageio-ffmpeg` paketinin içindeki ffmpeg kullanılır, ayrıca ffmpeg kurmak gerekmez.
 
@@ -210,14 +223,25 @@ Oynatıcıda:
 | `agents.hysteresis` | 0.15 | handover histerezisi |
 | `topology.agents_per_cell` | 20 | hücre sayısı agent sayısına göre büyür |
 | `routers.hotspot_fraction` | 0.15 | arka plan trafiği olan router oranı |
-| `sfib.radius` | 3 | duyuru yarıçapı R |
-| `sfib.summary`, `sfib.k` | kmeans, 4 | komşu başına özet |
+| `agents.card_alpha` | 2.0 | her agent'ın kendi cümle karışımının Dirichlet parametresi |
+| `sfib.radius` | 2 | duyuru yarıçapı R |
+| `sfib.summary`, `sfib.k` | kmeans, 8 | uzaktaki agent'ların özeti (`kmeans`, `medoid`, `mean`, `exact`) |
+| `sfib.exact_hops` | 1 | bu kadar yakındaki agent'lar kendi satırını tutar (0 = sadece özet) |
+| `sfib.encoding` | int8 | duyurulardaki vektör kodlaması |
+| `sfib.change_threshold` | 0.01 | bir handover mesajının yoluna devam etmesi için gereken değişim |
 | `forwarding.ttl` | 16 | paket TTL |
 | `forwarding.tau` | null | null ise `results/tau.json` |
-| `forwarding.header` | float32 | intent header kodlaması |
+| `forwarding.header` | int8 | intent header kodlaması |
+| `forwarding.accept` | best_known | `first`: τ'yu geçen ilk agent (v1), `best_known`: bilinen daha iyi aday yoksa teslim |
+| `forwarding.omega` | 0.08 | uzaktaki adayın hop başına zayıflaması |
+| `forwarding.load_band` | 0.05 | yük duyarlı greedy'de "eşit derecede iyi" bandı |
 | `sim.duration_s` / `query_rate` / `load` | 30 / 10 / 1 | süre, istek/s, yük çarpanı |
 | `sim.failure_fraction` | 0 | çöken router oranı |
-| `baselines.flood_ttl` | 6 | flooding TTL |
+| `baselines.flood_ttl`, `flood_window_s` | 6, 0.2 | flooding TTL ve cevap toplama penceresi |
+| `baselines.registry_service_ms`, `registry_update_ms` | 1.0, 0.05 | sorgu ve kayıt servis süresi |
+| `baselines.registry3_replicas` | 3 | replikalı registry sunucu sayısı |
+| `baselines.sdht_buckets`, `sdht_nprobe` | 64, 2 | semantik DHT katalog boyutu ve sorgulanan girdi sayısı |
+| `baselines.spfr_radius` | 2 | SPFR'nin kontrol ufku |
 | `dqn.*` | | eğitim hiperparametreleri ve reward ölçekleri |
 
 Kendi senaryon için sadece değiştirdiğin anahtarları içeren bir YAML yazıp `--config` ile verebilirsin (bkz. `configs/demo.yaml`).
@@ -243,7 +267,7 @@ Simülasyon görselleştirmeden ayrıdır: simülatör olayları JSONL'e yazar, 
 | `deliver` | pkt, agent, hops | yetenekli agent'a ulaştı |
 | `drop` | pkt, at, reason | başarısız (ttl, queue, link, wrong_agent, not_found, ...) |
 | `handover` | agent, from_cell, to_cell | mobil agent hücre değiştirdi |
-| `adv` / `withdraw` | from, to, n_vectors, card | S-FIB duyurusu / geri çekme |
+| `adv` / `withdraw` | from, to, n_vectors, agent | S-FIB duyurusu / geri çekme |
 | `move` | agent, x, y | mobil agent konumu (saniyede bir) |
 | `load` | node, busy | hotspot router yoğunlaştı / rahatladı |
 | `fail` | node | router çöktü |

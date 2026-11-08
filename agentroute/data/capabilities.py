@@ -698,6 +698,15 @@ def capability_cards():
     return rows
 
 
+def class_sentences():
+    """All five capability sentences of each class: two descriptions + three examples.
+
+    Every agent mixes these with its own random weights (v2), so that no two
+    agents advertise the same capability vector.
+    """
+    return [list(descs) + list(EXAMPLES[name]) for name, descs, _ in CLASSES]
+
+
 def split_intents(n_test=3, seed=0):
     """Split the ten intents of each class into train and test sets.
 

@@ -1,17 +1,18 @@
-"""DQN next-hop policy (AgentRoute).
+"""DQN policy (AgentRoute): deliver here, or forward to which neighbour.
 
-At every router the shared Q-network scores each candidate neighbour and the
-packet goes to the best one. During training the policy explores with
-epsilon-greedy and hands every finished decision to the learner:
+At every router the shared Q-network scores each possible action and takes the
+best one. v2 adds "deliver to the best local agent" as an action, so the
+network also decides whether a local match is good enough or a better one is
+known further away. That decision is what the reward depends on most.
 
-    reward per hop   = -(hop_cost + hop_delay / delay_scale)
-    on delivery      = + deliver_bonus
-    on any drop      = - drop_penalty   (TTL, queue, link loss, wrong agent ...)
+    reward per decision = -(hop_cost + delay / delay_scale)
+    on correct delivery = + deliver_bonus
+    on any drop         = - drop_penalty   (TTL, queue, link loss, wrong agent ...)
 
-The next-state value is the max Q over the neighbours of the next router,
-which is the Q-routing update (Boyan & Littman, 1994) with a neural network.
+The next-state value is the max Q over the actions of the next router, which
+is the Q-routing update (Boyan & Littman, 1994) with a neural network.
 
-Responsible: Bekir Göktepe
+Responsible: Bekir Göktepe (v2 revision written with AI assistance)
 """
 from pathlib import Path
 
@@ -20,9 +21,7 @@ import torch
 
 from agentroute.dqn.gnn import GNNQNet
 from agentroute.dqn.model import MAX_DEG, QNet
-from agentroute.forwarding import N_FEATURES, Policy, neighbor_features
-
-DEFAULT_REWARD = {"hop_cost": 0.05, "delay_scale_s": 0.1, "deliver_bonus": 1.0, "drop_penalty": 1.0}
+from agentroute.forwarding import LOCAL, N_FEATURES, Policy, best_local_agent, neighbor_features
 
 
 def build_model(kind, hidden=64):
@@ -33,15 +32,15 @@ def build_model(kind, hidden=64):
 
 class DQNPolicy(Policy):
     def __init__(self, model, kind="mlp", epsilon=0.0, learner=None, rng=None, reward=None):
+        super().__init__(reward)
         self.model = model
         self.kind = kind
         self.name = "agentroute_gnn" if kind == "gnn" else "agentroute"
         self.epsilon = epsilon
         self.learner = learner
         self.rng = rng if rng is not None else np.random.default_rng(0)
-        self.reward = reward or DEFAULT_REWARD
         self._cache = None
-        self.episode_return = 0.0
+        self._next = None
 
     @classmethod
     def load(cls, path, kind="mlp"):
@@ -67,36 +66,36 @@ class DQNPolicy(Policy):
     def _features(self, view, pkt):
         if self._cache is not None and self._cache[0] is view and self._cache[1] == pkt.pid:
             return self._cache[2], self._cache[3]
-        return neighbor_features(view, pkt)
+        return neighbor_features(view, pkt, with_local=True)
 
-    def choose(self, view, pkt):
-        cands, X = self._features(view, pkt)
+    def accept(self, view, pkt):
+        """The one decision per router. Returns an agent, or None and remembers the next hop."""
+        actions, X = self._features(view, pkt)
         self._cache = None
-        if not cands:
+        self._next = None
+        if not actions:
             return None
-        if self.epsilon > 0 and self.rng.random() < self.epsilon:
-            a = int(self.rng.integers(len(cands)))
+        if pkt.ttl <= 0:            # the hop budget is used up: delivering is the only option
+            a = actions.index(LOCAL)
+        elif self.epsilon > 0 and self.rng.random() < self.epsilon:
+            a = int(self.rng.integers(len(actions)))
         else:
             a = int(np.argmax(self.q_values(X)))
         pkt.pending = (X, a, view.now)
-        return cands[a]
+        if actions[a] == LOCAL:
+            return best_local_agent(view, pkt)
+        self._next = actions[a]
+        return None
 
-    def observe(self, pkt, now, next_view, outcome):
-        """Compute the reward of the last decision; store the transition when training."""
-        if pkt.pending is None:
-            return
-        X, a, t0 = pkt.pending
-        pkt.pending = None
-        rw = self.reward
-        r = -(rw["hop_cost"] + (now - t0) / rw["delay_scale_s"])
-        if outcome is not None:
-            r += rw["deliver_bonus"] if outcome == "deliver" else -rw["drop_penalty"]
-        self.episode_return += r
+    def choose(self, view, pkt):
+        return self._next
+
+    def learn(self, X, a, r, pkt, next_view, outcome):
         if self.learner is None:
             return
         if outcome is None:
-            cands2, X2 = neighbor_features(next_view, pkt)
-            self._cache = (next_view, pkt.pid, cands2, X2)
+            actions2, X2 = neighbor_features(next_view, pkt, with_local=True)
+            self._cache = (next_view, pkt.pid, actions2, X2)
             self.learner.push(X, a, r, X2, False)
         else:
             self.learner.push(X, a, r, None, True)

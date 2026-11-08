@@ -6,7 +6,7 @@ Bu belge, proposal'daki iş paketi bölüşümüne göre projenin hangi kısmın
 
 | Kişi | Öğrenci no | Sorumlu olduğu kod | Sunumdaki kısmı (~5 dk) |
 |---|---|---|---|
-| Ömer Faruk Gedikli | 220104004103 | Simülatör, topoloji, mobilite modeli, olay logu, üç baseline (registry, flooding, Chord) | Problem, motivasyon, ilgili çalışmalar, Figure 1 ile genel bakış |
+| Ömer Faruk Gedikli | 220104004103 | Simülatör, topoloji, mobilite modeli, olay logu, baseline'lar (registry, flooding, Chord, semantik DHT) | Problem, motivasyon, ilgili çalışmalar, Figure 1 ile genel bakış |
 | Bekir Emre Sarıpınar | 220104004039 | Yetenek dataset'i, embedding'ler, τ ayarı, S-FIB, yetenek duyuruları, greedy semantik forwarding | Capability address, S-FIB, duyurular, greedy ve sınırları |
 | Bekir Göktepe | 220104004018 | DQN next-hop policy, GNN varyantı, replay buffer, eğitim | DQN, mobilite, değerlendirme (baseline'lar, metrikler, sonuçlar), kapanış |
 | Hep birlikte | | Deneyler, grafikler, testler, final rapor, slaytlar | |
@@ -19,7 +19,7 @@ Bu belge, proposal'daki iş paketi bölüşümüne göre projenin hangi kısmın
 | `agentroute/sim/mobility.py` | Random-waypoint mobilite (vektörleştirilmiş), en yakın hücre seçimi, histerezisli handover kararı |
 | `agentroute/sim/simulator.py` | SimPy simülatörü: router kuyrukları, arka plan trafiği ve hotspot'lar, link gecikme/kaybı, agent'lar, handover (withdraw/announce yayılımı), node failure ve algılama, istek üretimi, sonuç metrikleri. Her rastgelelik türü için ayrı random stream, böylece her yöntem aynı senaryoyu görür. |
 | `agentroute/sim/events.py` | JSONL olay logu ve `topology.json` snapshot'ı |
-| `agentroute/baselines/registry.py` | Merkezi (DNS benzeri) registry: kayıt, periyodik yenileme, handover güncellemesi, tek kuyruklu sunucu, sorgu → cevap → görev |
+| `agentroute/baselines/registry.py` | Merkezi (DNS benzeri) registry: kayıt, periyodik yenileme, handover güncellemesi, tek sunucu ya da 3 replika, sorgu → cevap → görev |
 | `agentroute/baselines/flooding.py` | TTL-limited flooding, kopya tekrarını önleme, en benzer cevabı seçme |
 | `agentroute/baselines/chord.py` | Chord halkası (SHA-1, finger table, O(log N) lookup), exact-match anahtarlar |
 | `agentroute/config.py`, `configs/default.yaml` | YAML ayar yükleme, seed |
@@ -30,9 +30,9 @@ Bu belge, proposal'daki iş paketi bölüşümüne göre projenin hangi kısmın
 |---|---|
 | `agentroute/data/capabilities.py` | 50 yetenek sınıfı: sınıf başına 2 yetenek açıklaması, 3 örnek istek (yetenek kartı) ve 10 parafraz intent. Train/test bölmesi (7/3). |
 | `agentroute/embeddings.py` | MiniLM encoder, `.npy` cache, yetenek kartından prototip vektör, header sıkıştırma (int8 / binary) |
-| `experiments/tune_tau.py` | Kabul eşiği τ'nun F1 ile ayarlanması → `results/tau.json` |
+| `experiments/tune_tau.py` | Kabul eşiği τ'nun beklenen skorla (doğru +1, yanlış −1, kabul yok 0) ayarlanması → `results/tau.json` |
 | `agentroute/sfib.py` | S-FIB: komşu başına sayaç tablosu, k-means / mean / exact özet, R-hop sınırlı duyuru, artımlı withdraw/announce, failure sonrası yeniden kurma, kontrol mesajı sayımı |
-| `agentroute/forwarding.py` | Simülatörden bağımsız forwarding arayüzü: `Packet`, `NodeView`, kabul kuralı, DQN'in kullandığı 14 komşu özelliği, `GreedyPolicy` |
+| `agentroute/forwarding.py` | Simülatörden bağımsız forwarding arayüzü: `Packet`, `NodeView`, kabul kuralı, DQN'in kullandığı 15 aksiyon özelliği, `GreedyPolicy`, `LoadAwareGreedy`, `SPFRPolicy` |
 
 ## Bekir Göktepe: öğrenen next hop
 
@@ -67,7 +67,24 @@ CLAUDE.md'de görselleştirme "hep birlikte" olarak geçiyor. Takip ve anlatım 
 
 ## Yapay zeka desteğiyle yapılanlar
 
-Projenin asıl işi (dataset, embedding'ler, S-FIB, forwarding, DQN/GNN, simülatör ve baseline'lar) yukarıdaki kişilere aittir. Aşağıdaki destekleyici kısımlar bir yapay zeka kodlama aracı (Claude) desteğiyle yazılmıştır:
+**v1 (git etiketi `v1`):** projenin asıl işi (dataset, embedding'ler, S-FIB, forwarding, DQN/GNN, simülatör ve baseline'lar) yukarıdaki kişilere aittir. Aşağıdaki tablodaki destekleyici kısımlar bir yapay zeka kodlama aracı (Claude) desteğiyle yazılmıştır.
+
+**v2 (Kasım 2026 revizyonu):** v1'in eleştirel değerlendirmesinden sonra çekirdek modüller de yapay zeka aracıyla değiştirildi. Yukarıdaki sorumlu kişiler aynıdır, ama şu dosyalardaki v2 değişiklikleri yapay zeka desteğiyle yazılmıştır ve dosya başlıklarında böyle belirtilir:
+
+| Dosya | v2'de değişen |
+|---|---|
+| `agentroute/sfib.py` | Özetler üzerinde gerçek distance-vector, iki katmanlı tablo, handover'da eşikli güncelleme, byte sayımı |
+| `agentroute/forwarding.py` | Kabul kuralı, yük duyarlı greedy, SPFR tarzı politika, ortak ödül hesabı |
+| `agentroute/embeddings.py`, `agentroute/data/capabilities.py` | Agent başına ayrı yetenek vektörü, encoder seçimi |
+| `agentroute/sim/simulator.py` | Yeni yöntemler, oracle tavanı, byte ve saniye başına metrikler |
+| `agentroute/baselines/*` | Flooding'in cevap ve pencere maliyeti, replikalı registry, semantik DHT |
+| `agentroute/dqn/policy.py`, `train.py`, `model.py` | "Burada teslim et" aksiyonu, greedy ve yük duyarlı greedy'nin aynı ödülle ölçülmesi |
+| `experiments/tune_tau.py`, `compare_encoders.py`, `run_rate.py`, `run_tau.py`, `run_matched.py` | τ seçimi ve yeni deneyler |
+| `tests/` | v2 için yeni testler |
+
+Bu yüzden sunumdan önce herkes kendi modülünün v2 halini okuyup anlamalıdır: hoca sorarsa "bu kısmı yapay zeka yazdı" demek yeterli olmaz, kodun ne yaptığını açıklayabilmek gerekir.
+
+Destekleyici kısımlar:
 
 | Kısım | Dosyalar |
 |---|---|
@@ -84,7 +101,7 @@ Final raporun "Use of AI Tools" bölümü aynı listeyi İngilizce verir.
 
 Hoca soruyu herhangi birimize sorabilir. Bu yüzden:
 
-- [ ] Herkes kendi modüllerini baştan sona okudu ve bir arkadaşına anlattı.
+- [ ] Herkes kendi modülünün **v2 halini** baştan sona okudu ve bir arkadaşına anlattı.
 - [ ] Herkes `docs/NASIL_YAPTIK.md` dosyasının tamamını okudu (diğer iki kişinin kısımları dahil).
 - [ ] Herkes `docs/SUNUM_HAZIRLIK.md` dosyasındaki olası soruları en az bir kere sesli cevapladı.
 - [ ] Bir prova yapıldı, her kısım 5 dakikanın altında.

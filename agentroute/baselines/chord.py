@@ -3,15 +3,27 @@
 Routers form a Chord ring (SHA-1 identifiers, finger tables, O(log N)
 lookups). An agent stores its capability name under key = SHA-1(name). A
 request is looked up under SHA-1(request text). This is how exact-match
-discovery works today; it is efficient, but a paraphrased request hashes to a
-different key and is almost never found. We keep it as a reference point that
-shows why semantic matching is needed, not as a serious competitor.
+discovery works today. Our requests never repeat a capability text word for
+word, so this baseline finds nothing BY CONSTRUCTION: its 0% is a definition,
+not a measurement. It only serves as a cost reference.
 
-Responsible: Ömer Faruk Gedikli
+SemanticDHT (v2) is the serious application-layer rival. There is a public
+catalogue of capability centroids. An agent registers under its nearest
+catalogue entry, a requester looks up its nearest entries, and the node
+responsible for an entry compares the intent with the agents stored there
+(an inverted index on top of Chord). Routers stay plain IP routers.
+
+Responsible: Ömer Faruk Gedikli (v2 revision written with AI assistance)
 """
 import bisect
 import hashlib
 import re
+
+import numpy as np
+
+from agentroute.sfib import kmeans_summary
+
+SMALL_MSG = 64
 
 
 def normalize(text):
@@ -100,7 +112,8 @@ class Chord:
         self.store.setdefault(self.successor(key), {}).setdefault(key, set()).add(a)
         self.loc[a] = u
         if count:
-            self.sim.ctrl_msgs += self.cost(u, key)
+            hops = self.cost(u, key)
+            self.sim.count_ctrl(hops, hops * SMALL_MSG)
 
     def on_move(self, a):
         self.put(a)
@@ -110,7 +123,8 @@ class Chord:
         for a in range(sim.n_agents):
             u = int(sim.attached[a])
             if u >= 0 and u in self.id_of:
-                sim.ctrl_msgs += self.cost(u, self.agent_key[a])
+                hops = self.cost(u, self.agent_key[a])
+                sim.count_ctrl(hops, hops * SMALL_MSG)
 
     # ---- lookup -------------------------------------------------------
     def query(self, pkt, start):
@@ -128,14 +142,80 @@ class Chord:
         agents = [a for a in self.store.get(resp, {}).get(key, set()) if a != pkt.src_agent]
         back = sim.path(resp, start)
         if back:
-            reason, at = yield from sim.traverse(pkt, back)
+            reason, at = yield from sim.traverse(pkt, back, size=SMALL_MSG)
             if reason:
                 return sim.finish(pkt, False, reason, at=at)
         if not agents:
             return sim.finish(pkt, False, "not_found", at=resp)
         agent = min(agents)
         target = self.loc[agent]
-        reason, at = yield from sim.traverse(pkt, sim.path(start, target))
+        reason, at = yield from sim.traverse(pkt, sim.path(start, target), size=SMALL_MSG)
+        if reason:
+            return sim.finish(pkt, False, reason, at=at)
+        reason = yield from sim.deliver_to(pkt, target, agent)
+        if reason == "handover":
+            reason = "stale_location"
+        if reason:
+            return sim.finish(pkt, False, reason, at=target)
+        return sim.finish(pkt, True, None, agent=agent)
+
+
+class SemanticDHT(Chord):
+    """An inverted index over Chord: catalogue entry -> agents stored at one node."""
+
+    def __init__(self, sim, bcfg):
+        self.nprobe = bcfg["sdht_nprobe"]
+        # the catalogue is computed from the public capability descriptions
+        vecs = sim.card_vecs
+        reps, _, _ = kmeans_summary(vecs, np.ones(len(vecs), np.float32), np.zeros(len(vecs), int),
+                                    bcfg["sdht_buckets"])
+        self.catalogue = reps
+        self.entry_key = [chash(f"catalogue-{i}", bcfg["chord_bits"]) for i in range(len(reps))]
+        # the registration key of every agent = its nearest catalogue entry
+        self.agent_entry = np.argmax(sim.agent_vec @ reps.T, axis=1)
+        super().__init__(sim, bcfg["chord_bits"])
+        self.agent_key = [self.entry_key[e] for e in self.agent_entry]
+        self.rebuild(count=False)
+
+    def probe(self, pkt, start, key, out):
+        """Look up one catalogue entry; append (similarity, agent) to out if a match is found."""
+        sim = self.sim
+        hops_before = pkt.hops
+        route = self.route(start, key)
+        for a, b in zip(route, route[1:]):
+            reason, _ = yield from sim.traverse(pkt, sim.path(a, b))
+            if reason:
+                return
+        resp = route[-1]
+        ids = [a for a in self.store.get(resp, {}).get(key, set())
+               if a != pkt.src_agent and sim.attached[a] >= 0]
+        back = sim.path(resp, start)
+        if back:
+            reason, _ = yield from sim.traverse(pkt, back, size=SMALL_MSG)
+            if reason:
+                return
+        pkt.hops = hops_before
+        if ids:
+            sims = sim.agent_vec[ids] @ pkt.intent
+            j = int(sims.argmax())
+            if sims[j] >= sim.tau:
+                out.append((float(sims[j]), ids[j]))
+
+    def query(self, pkt, start):
+        sim = self.sim
+        reason = yield from sim.radio()
+        if reason:
+            return sim.finish(pkt, False, reason, at=start)
+        order = np.argsort(-(self.catalogue @ pkt.intent))[:self.nprobe]
+        out = []
+        probes = [sim.env.process(self.probe(pkt, start, self.entry_key[e], out)) for e in order]
+        yield sim.env.all_of(probes)
+        if not out:
+            return sim.finish(pkt, False, "not_found", at=start)
+        _, agent = max(out)
+        target = self.loc[agent]
+        pkt.hops = 0
+        reason, at = yield from sim.traverse(pkt, sim.path(start, target), size=SMALL_MSG)
         if reason:
             return sim.finish(pkt, False, reason, at=at)
         reason = yield from sim.deliver_to(pkt, target, agent)

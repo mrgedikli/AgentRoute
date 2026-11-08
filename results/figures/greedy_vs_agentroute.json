@@ -1,18 +1,18 @@
 {
-  "pid": 530,
-  "text": "get the words from this voicemail",
+  "pid": 153,
+  "text": "narrate the scene in this holiday snapshot",
   "greedy": {
     "type": "drop",
     "reason": "wrong_agent",
-    "hops": 2,
-    "time_ms": 17.4,
+    "hops": 1,
+    "time_ms": 14.4,
     "agent_class": null
   },
   "agentroute": {
     "type": "deliver",
     "reason": null,
     "hops": 2,
-    "time_ms": 21.8,
-    "agent_class": "speech_to_text"
+    "time_ms": 20.6,
+    "agent_class": "image_captioning"
   }
 }

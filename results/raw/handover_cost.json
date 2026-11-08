@@ -2,22 +2,28 @@
   "1000": {
     "routers": 74,
     "handovers_per_s": 4.5,
-    "msgs_per_handover": 32.6,
-    "full_round_msgs": 444,
-    "share_of_full_round": 0.0734
+    "msgs_per_handover": 20.43,
+    "handover_msgs_per_s": 92.6,
+    "handover_kB_per_s": 40.4,
+    "refresh_msgs_per_s": 44.4,
+    "refresh_kB_per_s": 327.2
   },
   "3000": {
     "routers": 195,
     "handovers_per_s": 14.0,
-    "msgs_per_handover": 31.6,
-    "full_round_msgs": 1216,
-    "share_of_full_round": 0.026
+    "msgs_per_handover": 20.25,
+    "handover_msgs_per_s": 283.7,
+    "handover_kB_per_s": 123.7,
+    "refresh_msgs_per_s": 121.6,
+    "refresh_kB_per_s": 962.5
   },
   "10000": {
     "routers": 450,
     "handovers_per_s": 47.7,
-    "msgs_per_handover": 24.4,
-    "full_round_msgs": 2892,
-    "share_of_full_round": 0.0084
+    "msgs_per_handover": 20.37,
+    "handover_msgs_per_s": 971.0,
+    "handover_kB_per_s": 423.3,
+    "refresh_msgs_per_s": 289.2,
+    "refresh_kB_per_s": 2866.3
   }
 }
