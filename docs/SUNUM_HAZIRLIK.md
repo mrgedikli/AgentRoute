@@ -97,7 +97,7 @@ Pencereyi 20 ms ile 1 s arasında taradık: 50 ms'de %63.4 ve 79 ms, 100 ms'de %
 Doğru, başarı 0–30 m/s arasında düz, 150 m hücrelerde bile. Modelimizde handover 50 ms kesinti, güncellemeler milisaniyeler içinde yayılıyor. Etki maliyette: 150 m hücrede 30 m/s'de kontrol trafiği 445'ten 1.336 kB/s'ye çıkıyor. Keşfi zorlayan bir mobilite modeli için görev süresi boyunca handover ve handover hataları eklenmeli, gelecek iş.
 
 **10. Periyodik yenileme bu kadar pahalıysa neden var?**
-Handover kontrol trafiğinin küçük kısmı (10.000 agent'ta 423 kB/s), yenileme 2.866 kB/s. Soft state basitlik veriyor ve hataları kendiliğinden düzeltiyor. Yenileme süresini uzatmak veya yalnızca değişeni göndermek en bariz iyileştirme, denemedik.
+Handover kontrol trafiğinin küçük kısmı (10.000 agent'ta 423 kB/s), yenileme 2.866 kB/s. Soft state basitlik veriyor ve hataları kendiliğinden düzeltiyor. Yalnızca değişen satırları göndermeyi (artımlı yenileme) ayrıca denedik: 1.000 agent'ta sürekli kontrol trafiği 380'den 64 kB/s'ye iniyor, DQN'in başarısı %62.9'da kalıyor. 10.000 agent'ta (5 seed) trafik 3.453'ten 549 kB/s'ye iniyor, başarı değişmiyor (%66.7 ve %67.0). Bu ayrı bir deney (`experiments/run_refresh.py`), rapordaki ve slaytlardaki bütün sayılar tam yenilemeyle. Yenileme süresini uzatmayı denemedik.
 
 **11. R = 1'de DQN neden 54 ms oluyor?**
 Eğitim R = 2–4 arasındaydı, R = 1'de tablo görmediği bir biçimde ve hop sayısı 6.4'e çıkıyor. GNN 21 ms'de kalıyor. Dürüst sonuç: politika eğitim aralığı dışına otomatik taşınmıyor. Ortalama vektörlü tabloda da DQN greedy'nin altında (%44.6'ya karşı %51.0), aynı neden.
