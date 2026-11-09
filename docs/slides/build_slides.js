@@ -499,7 +499,7 @@ if (train) {
   const bestRet = train.val_return[bestIdx];
   const v = verb(bestRet, Math.max(train.greedy_val_return, train.load_val_return), 0.01);
   const first = train.val_return[0];
-  const s = content("Learning, mobility, evaluation", `Validation: the DQN ${v} the hand-written rules`, "goktepe",
+  const s = content("Learning, mobility, evaluation", `Validation: the DQN ${v} both same-table rules`, "goktepe",
     `Everything here is measured with exploration switched off, on fixed validation scenarios. We do not show the training return, because that one rises anyway as exploration falls. The dashed lines are greedy and load-aware greedy, measured with the same reward. Validation return of the DQN starts at ${first.toFixed(2)} and its best is ${bestRet.toFixed(2)} at episode ${train.episode[bestIdx]}. Greedy has ${train.greedy_val_return.toFixed(2)}, load-aware greedy ${train.load_val_return.toFixed(2)}. Success: DQN ${pct(best, 1)}, greedy ${pct(train.greedy_val_success, 1)}, load-aware ${pct(train.load_val_success, 1)}.`);
   const labels = train.episode.map(String);
   const series = (key, loadKey, greedyKey, f) => [
