@@ -5,9 +5,13 @@ export const METHOD_LABEL = {
   agentroute: "AgentRoute (DQN)",
   agentroute_gnn: "AgentRoute (GNN)",
   greedy: "Greedy semantic",
+  greedy_load: "Load-aware greedy",
+  spfr: "SPFR-style",
   flooding: "Flooding",
   registry: "Central registry",
+  registry3: "Registry (3 replicas)",
   chord: "Chord (exact)",
+  sdht: "Semantic DHT",
 };
 
 export const REASON_LABEL = {

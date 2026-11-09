@@ -32,10 +32,12 @@ from export_web_data import export_run, write_index  # noqa: E402
 LOG_ROOT = ROOT / "results" / "logs" / "streamlit"
 FIGURES = ROOT / "results" / "figures"
 LABELS = {"agentroute": "AgentRoute (DQN)", "agentroute_gnn": "AgentRoute (GNN)",
-          "greedy": "Greedy semantic", "flooding": "Flooding", "registry": "Central registry",
-          "chord": "Chord (exact)"}
+          "greedy": "Greedy semantic", "greedy_load": "Load-aware greedy", "spfr": "SPFR-style",
+          "flooding": "Flooding", "registry": "Central registry", "registry3": "Registry (3 replicas)",
+          "chord": "Chord (exact)", "sdht": "Semantic DHT"}
 COLORS = {"agentroute": "#2a78d6", "agentroute_gnn": "#eb6834", "greedy": "#1baf7a",
-          "flooding": "#eda100", "registry": "#e87ba4", "chord": "#008300"}
+          "greedy_load": "#0f8a8a", "spfr": "#6250d6", "flooding": "#eda100", "registry": "#e87ba4",
+          "registry3": "#a8437a", "chord": "#008300", "sdht": "#7a6a5a"}
 REASONS = ["wrong_agent", "not_found", "ttl", "queue", "link", "node_down", "handover",
            "stale_location", "registry_queue", "no_route"]
 

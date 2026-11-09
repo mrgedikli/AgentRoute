@@ -380,7 +380,7 @@ def comparison_frames(runs, pid):
     for k in range(n + 60):
         panels = [fr[min(k, len(fr) - 1)] for fr in per]
         frames.append({"panels": panels,
-                       "title": "Same request, same network: greedy vs learned next hop",
+                       "title": "Selected example, chosen because the paths differ: greedy vs learned",
                        "subtitle": f"Intent: \"{q['text']}\"   (orange = busy router at that moment)"})
     return frames
 

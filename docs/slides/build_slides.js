@@ -33,12 +33,15 @@ const M = {
   agentroute: { name: "AgentRoute (DQN)", color: "2A78D6" },
   agentroute_gnn: { name: "AgentRoute (GNN)", color: "EB6834" },
   greedy: { name: "Greedy semantic", color: "1BAF7A" },
+  greedy_load: { name: "Load-aware greedy", color: "0F8A8A" },
+  spfr: { name: "SPFR-style", color: "6250D6" },
   flooding: { name: "Flooding", color: "EDA100" },
   registry: { name: "Central registry", color: "E87BA4" },
+  registry3: { name: "Registry (3 replicas)", color: "A8437A" },
+  sdht: { name: "Semantic DHT", color: "7A6A5A" },
   chord: { name: "Chord (exact)", color: "008300" },
 };
-const ALL = Object.keys(M);
-const SEM = ["agentroute", "agentroute_gnn", "greedy"];
+const ALL = Object.keys(M).filter((m) => m !== "agentroute_gnn");     // the GNN would only clutter the charts
 const THEME = { name: "AgentRoute", colors: { dk1: INK, lt1: WHITE, dk2: NAVY, lt2: PANEL,
   accent1: "2A78D6", accent2: "EB6834", accent3: "1BAF7A", accent4: "EDA100", accent5: "E87BA4",
   accent6: "008300", hlink: "2A78D6", folHlink: "6250D6" } };
@@ -190,19 +193,51 @@ function methodLines(s, exp, metric, methods, o) {
 // ---------------------------------------------------------------- numbers used in the story
 const big = S.scale.values[S.scale.values.length - 1];
 const mid = S.scale.values.includes(1000) ? 1000 : S.scale.values[Math.floor(S.scale.values.length / 2)];
-const ar = (metric, v = big) => get("scale", "agentroute", metric, v);
-const gr = (metric, v = big) => get("scale", "greedy", metric, v);
-const fl = (metric, v = big) => get("scale", "flooding", metric, v);
-const rg = (metric, v = big) => get("scale", "registry", metric, v);
-const ch = (metric, v = big) => get("scale", "chord", metric, v);
+const at = (method) => (metric, v = big) => get("scale", method, metric, v);
+const ar = at("agentroute");
+const gr = at("greedy");
+const gl = at("greedy_load");
+const sp = at("spfr");
+const fl = at("flooding");
+const rg = at("registry");
+const r3 = at("registry3");
+const dh = at("sdht");
+const ch = at("chord");
 const sim = S.similarity;
 const train = S.train_mlp;
 const bestIdx = train ? train.val_return.indexOf(Math.max(...train.val_return)) : -1;
-const speedups = S.scale.values.filter((v) => v >= 300)
-  .map((v) => 1 - get("scale", "agentroute", "time_ms", v) / get("scale", "greedy", "time_ms", v));
-const speedRange = `${Math.round(Math.min(...speedups) * 100)}\u2013${Math.round(Math.max(...speedups) * 100)}%`;
+const kb = (x) => (x == null ? "n/a" : x >= 1000 ? `${(x / 1000).toFixed(1)} MB` : `${x >= 10 ? Math.round(x) : x.toFixed(1)} kB`);
+const signed = (x, d = 1) => `${x >= 0 ? "+" : "−"}${Math.abs(x).toFixed(d)}`;
+const matched = S.matched || {};
+const scen = (name, pair) => (matched[name] ? matched[name][pair] : null);
+const pairTxt = (p) => (p ? `${signed(p.success_diff_points)} points (95% CI ${p.success_diff_ci95[0].toFixed(1)} to ${p.success_diff_ci95[1].toFixed(1)})` : "n/a");
+function ciVerb(p) {     // "beats" only if the whole interval is on one side of zero
+  if (!p) return "matches";
+  if (p.success_diff_ci95[0] > 0) return "beats";
+  if (p.success_diff_ci95[1] < 0) return "trails";
+  return "matches";
+}
+const mainScen = `${big} agents, load 1`;
+const dqnVsLoad = scen(mainScen, "agentroute vs greedy_load");
+const dqnVsGreedy = scen(mainScen, "agentroute vs greedy");
+const dqnVsSpfr = scen(mainScen, "agentroute vs spfr");
 const lmaxAll = S.load.values[S.load.values.length - 1];
-const heavyVerb = verb(get("load", "agentroute", "success_rate", lmaxAll), get("load", "greedy", "success_rate", lmaxAll));
+
+// methods x values, plus the matching ceiling as a dashed reference
+function successWithCeiling(s, exp, methods, o) {
+  const e = S[exp];
+  const labels = e.values.map((v) => (o.labelFn ? o.labelFn(v) : String(v)));
+  const series = [];
+  const colors = [];
+  for (const m of methods) {
+    if (!e.methods[m]) continue;
+    series.push({ name: M[m].name, labels, values: e.methods[m].success_rate.map((v) => v * 100) });
+    colors.push(M[m].color);
+  }
+  series.push({ name: "Matching ceiling", labels, values: e.methods[methods[0]].oracle_best.map((v) => v * 100) });
+  colors.push("0B0B0B");
+  s.addChart(pres.charts.LINE, series, chartOpts({ ...o, colors, fmt: '0"%"', min: 0, yTitle: "success" }));
+}
 
 // ================================================================= slides
 // 1 ---- title
@@ -216,7 +251,7 @@ pres.addSection({ title: "Problem and big picture" });
     { text: "Ömer Faruk Gedikli · Bekir Emre Sarıpınar · Bekir Göktepe", options: { breakLine: true } },
     { text: "CSE 476/575 Mobile Communication Networks · 11 November 2026" },
   ], { placeholder: "team" });
-  s.addNotes("OMER. One sentence: we route packets to a capability instead of an address, and every router learns the best next hop by itself. Introduce the three parts: Omer - the problem, Bekir Emre - addressing and the semantic FIB, Bekir Goktepe - learning, mobility and the evaluation.");
+  s.addNotes("OMER. One sentence: we route packets to a capability instead of an address, and we test whether routers should learn the next hop. Introduce the three parts: Omer - the problem, Bekir Emre - addressing and the semantic FIB, Bekir Goktepe - learning, mobility and the evaluation.");
 }
 
 // 2 ---- where vs who can
@@ -241,17 +276,17 @@ pres.addSection({ title: "Problem and big picture" });
 
 // 3 ---- two classic answers
 {
-  const regT = rg("time_ms"); const arT = ar("time_ms");
-  const flM = fl("msgs_per_query"); const arM = ar("msgs_per_query");
-  const hoPerS = ar("handovers") / 30;
-  const s = content("Problem and big picture", "Two classic answers break at scale", "omer",
-    `Option one is a central registry, like DNS: every agent registers, every request goes to one server. In our simulation with ${num(big)} agents a request through the registry needs ${ms(regT)} on average, against ${ms(arT)} for AgentRoute, because registrations and requests queue at one server - and if its router fails, discovery stops. Option two is flooding: fine in a small network, but at ${num(big)} agents it costs ${num(flM)} messages per request. And on top of that, half of our agents move: about ${Math.round(hoPerS)} handovers per second.`);
+  const regT = rg("time_ms"); const arT = gr("time_ms");
+  const flK = fl("query_kB_per_query"); const arK = gr("query_kB_per_query");
+  const hoPerS = gr("handovers") / 30;
+  const s = content("Problem and big picture", "Two classic answers, and what they cost", "omer",
+    `Option one is a registry, like DNS: agents register, a request goes to a server first. In our simulation with ${num(big)} agents a request through one central registry takes ${ms(regT)}, because it travels to the server, back, and only then to the agent; semantic forwarding takes ${ms(arT)}. If the server's router fails, discovery stops; replicas fix that part. Option two is flooding: no state at all, but at ${num(big)} agents every request costs ${kb(flK)} of traffic, against ${kb(arK)} for forwarding. And half of our agents move: about ${Math.round(hoPerS)} handovers per second.`);
   const cards = [
-    { n: 1, head: "Central registry", body: "Every registration and request passes one server: a bottleneck and a single point of failure.",
-      value: ms(regT), label: `per request at ${num(big)} agents (AgentRoute: ${ms(arT)})`, color: M.registry.color },
-    { n: 2, head: "Flooding", body: "Ask every router within a TTL: works in small networks, explodes in large ones.",
-      value: num(flM), label: `messages per request at ${num(big)} agents (AgentRoute: ${num(arM)})`, color: M.flooding.color },
-    { n: 3, head: "Mobility", body: "Agents on phones, cars and drones keep changing cell, so any location table is soon stale.",
+    { n: 1, head: "Registry", body: "Every request first goes to a server and back. One server is also a single point of failure.",
+      value: ms(regT), label: `per request at ${num(big)} agents (semantic forwarding: ${ms(arT)})`, color: M.registry.color },
+    { n: 2, head: "Flooding", body: "Ask every router within a TTL: no state, but the traffic grows with the network.",
+      value: kb(flK), label: `of traffic per request at ${num(big)} agents (forwarding: ${kb(arK)})`, color: M.flooding.color },
+    { n: 3, head: "Mobility", body: "Agents on phones, cars and drones keep changing cell, so location tables need constant updates.",
       value: `${Math.round(hoPerS)} / s`, label: `handovers with ${num(big)} agents, half of them mobile`, color: "6250D6" },
   ];
   cards.forEach((c, i) => {
@@ -263,39 +298,40 @@ pres.addSection({ title: "Problem and big picture" });
     stat(s, c.value, c.label, x + 0.3, 3.95, 3.3);
   });
   box(s, 0.6, 5.9, 12.13, 0.75, TINT);
-  text(s, "AgentRoute: no central server, no flooding, and a handover only updates its neighbourhood",
+  text(s, "Our question: can routers find a capable agent themselves, and does learning help them?",
     0.9, 5.9, 11.6, 0.75, { fontSize: 18, bold: true, color: "1C5CAB", valign: "middle", fontFace: "Cambria" });
 }
 
 // 4 ---- related work
 {
-  const s = content("Problem and big picture", "Related work stays above the network layer", "omer",
-    "Recent proposals add an agent-specific protocol layer above HTTP [1], or capability discovery services and registries [3], [4]. The closest work, SPFR [2], forwards hop by hop with a hand-designed potential field. We change the network layer itself: the address of a destination is what it can do, the next hop is learned, and we evaluate it in a mobile cellular / edge topology with handovers.");
+  const s = content("Problem and big picture", "Where AgentRoute sits among related work", "omer",
+    "Naming by intent is not new: INS did it at the application level in 1999, and pSearch ran semantic search over a DHT in 2003. Recent Internet-of-Agents work adds protocol layers above HTTP [1], or discovery services [3], [4]. An IETF draft [14] proposes a semantic forwarding table steered by a controller, without an evaluation. The closest work, SPFR [2], forwards hop by hop to the dominant executor with a hand-designed potential field and proves loop freedom; it keeps one table row per executor and is evaluated on wired topologies. We use a compressed two-tier table, test whether a learned policy helps, and evaluate in a mobile cellular topology against SPFR's rule. NDN routes by name as well, but by exact prefix.");
   const head = (t) => ({ text: t, options: { bold: true, color: WHITE, fill: { color: NAVY } } });
   const rows = [
     [head("Work"), head("Where it lives"), head("Matching"), head("Next hop"), head("Mobile evaluation")],
-    ["[1] Layered protocol for the Internet of Agents (2025)", "above HTTP", "agent descriptions", "–", "–"],
-    ["[3] Agent discovery in the Internet of Agents (2025)", "discovery service", "registry / search", "–", "–"],
-    ["[4] IETF draft-wang-dmsc-drisac (2026)", "registration service", "semantic discovery", "–", "–"],
-    ["[2] SPFR: semantic potential field routing (2026)", "network layer", "semantic", "heuristic", "–"],
+    ["INS: intentional naming (1999) · pSearch (2003)", "overlay, DHT", "attributes / semantic", "–", "–"],
+    ["[1] Layered protocol for Internet of Agents (2025)", "above HTTP", "agent descriptions", "–", "–"],
+    ["[3], [4] Agent discovery, IETF draft-wang-dmsc (2025–26)", "discovery service", "registry / search", "–", "–"],
+    ["[14] IETF draft-li semantic routing (2025)", "network layer", "intent vectors", "controller policy", "–"],
+    ["[2] SPFR: semantic potential field routing (2026)", "network layer", "semantic, per executor", "hand-designed", "–"],
   ].map((r, i) => (i === 0 ? r : r.map((c) => ({ text: c, options: { color: INK } }))));
-  const ours = ["AgentRoute (ours)", "network layer", "semantic S-FIB", "learned (DQN, GNN)", "cellular / edge, handovers"]
+  const ours = ["AgentRoute (ours)", "network layer", "semantic, two-tier S-FIB", "learned, and hand-written rivals", "cellular / edge, handovers"]
     .map((c) => ({ text: c, options: { bold: true, color: "1C5CAB", fill: { color: TINT } } }));
   rows.push(ours);
-  s.addTable(rows, { x: 0.6, y: 1.6, w: 12.1, colW: [4.3, 2.0, 2.1, 1.75, 1.95], fontSize: 14, fontFace: "Calibri",
-    border: { type: "solid", color: GRID, pt: 1 }, rowH: 0.62, valign: "middle", margin: 0.08 });
-  text(s, "References: [1] Fleming et al., arXiv:2511.19699 · [2] arXiv:2608.25396 · [3] Guo et al., arXiv:2511.19113 · [4] IETF draft, Aug. 2026",
-    0.6, 6.1, 12.1, 0.4, { fontSize: 11, color: MUTED });
+  s.addTable(rows, { x: 0.6, y: 1.55, w: 12.1, colW: [4.3, 1.7, 2.2, 2.0, 1.9], fontSize: 13, fontFace: "Calibri",
+    border: { type: "solid", color: GRID, pt: 1 }, rowH: 0.56, valign: "middle", margin: 0.07 });
+  text(s, "[1] Fleming et al., arXiv:2511.19699 · [2] Qin et al., arXiv:2608.25396 · [3] Guo et al., arXiv:2511.19113 · [4] draft-wang-dmsc-drisac-00 · [14] draft-li-semantic-routing-architecture-00",
+    0.6, 6.2, 12.1, 0.4, { fontSize: 11, color: MUTED });
 }
 
 // 5 ---- one picture
 {
   const s = content("Problem and big picture", "AgentRoute in one picture", "omer",
-    "Two things happen. (1) Dashed: agents advertise their capabilities, and every router fills its semantic FIB - for each neighbour, which capabilities lie behind it. (2) Solid: a task packet carries an intent embedding instead of a destination address; each router forwards it to the best neighbour until an agent that can do the task accepts it. Inside every node, the S-FIB match and the local network state go into a DQN that picks the next hop. Bekir Emre now explains the addressing and the S-FIB.");
+    "Two things happen. (1) Dashed: agents advertise their capabilities, and every router fills its semantic FIB - for each neighbour, which capabilities lie behind it. (2) Solid: a task packet carries an intent embedding instead of a destination address; each router either hands it to a local agent or forwards it to the best neighbour. Inside every node, the S-FIB match and the local network state go into the policy that takes this decision. Bekir Emre now explains the addressing and the S-FIB.");
   const nodes = [
     { t: "Requesting agent", b: "on a mobile UE,\nmoves between cells", hl: false },
-    { t: "gNB + edge node", b: "AgentRoute node\nS-FIB + DQN", hl: true },
-    { t: "Core router", b: "AgentRoute node\nS-FIB + DQN", hl: true },
+    { t: "gNB + edge node", b: "AgentRoute node\nS-FIB + policy", hl: true },
+    { t: "Core router", b: "AgentRoute node\nS-FIB + policy", hl: true },
     { t: "Serving agent", b: "capability:\nobject detection", hl: false },
   ];
   nodes.forEach((n, i) => {
@@ -313,10 +349,10 @@ pres.addSection({ title: "Problem and big picture" });
   box(s, 0.6, 3.85, 12.1, 2.75, PANEL);
   text(s, "Inside an AgentRoute node", 0.9, 4.0, 6, 0.4, { fontSize: 16, bold: true, fontFace: "Cambria" });
   const steps = [
-    ["Intent embedding", "carried in the packet\n(MiniLM, 384-d)"],
+    ["Intent embedding", "carried in the packet\n(MiniLM, int8, 388 B)"],
     ["S-FIB match", "cosine similarity of the\nintent to each neighbour"],
     ["Local state", "queue load, link quality,\nhandovers, TTL"],
-    ["DQN policy", "one Q-value per neighbour,\npicks the next hop"],
+    ["Policy", "deliver here,\nor which neighbour next"],
   ];
   steps.forEach((st, i) => {
     const x = 0.9 + i * 2.95;
@@ -330,9 +366,12 @@ pres.addSection({ title: "Problem and big picture" });
 // 6 ---- capability address
 pres.addSection({ title: "Addressing and S-FIB" });
 {
+  const encoders = JSON.parse(fs.readFileSync(path.join(ROOT, "results", "encoders.json"), "utf8"));
+  const tops = Object.values(encoders).map((e) => e.test.top1);
+  const encRange = `${Math.round(Math.min(...tops) * 100)}–${Math.round(Math.max(...tops) * 100)}%`;
   const s = content("Addressing and S-FIB", "A capability address is a vector, not a host", "emre",
-    `BEKIR EMRE. Each agent has a capability card: a description and two example requests. We encode every sentence with the pre-trained MiniLM sentence encoder and average them: that 384-dimensional vector plus the agent ID is the address. Sentences with similar meaning get similar vectors. Example: 'find the cars in this photo' has cosine ${sim.example[0].cos} with the object-detection card, but only ${sim.example[2].cos} with image classification. An agent accepts a task when the cosine is at least tau = ${TAU.tau}, tuned on training paraphrases. On unseen test paraphrases the right class is the most similar one ${pct(TAU.test_top1)} of the time. The chart shows why this is hard: same-class and other-class similarities overlap.`);
-  text(s, "Agent card → MiniLM → mean of the sentence vectors", 0.6, 1.5, 6.0, 0.4, { fontSize: 16, bold: true });
+    `BEKIR EMRE. Each provider describes its skill in its own words, so every agent gets its own vector: a random mix of the sentences of its capability. We encode the sentences with the pre-trained MiniLM encoder. Example: 'find the cars in this photo' has cosine ${sim.example[0].cos} with the object-detection card, but only ${sim.example[2].cos} with image classification. An agent accepts a task when the cosine is at least tau = ${TAU.tau}. We choose tau by expected value: plus one for the right agent, minus one for the wrong agent, zero for nothing. On unseen paraphrases the most similar agent is of the right class ${pct(TAU.test_top1)} of the time. We tried ${tops.length} pre-trained encoders: they all land at ${encRange} on the unseen paraphrases, so a bigger encoder does not fix this. The chart shows why: same-class and other-class similarities overlap.`);
+  text(s, "Agent's sentences → MiniLM → its own weighted mix", 0.6, 1.5, 6.0, 0.4, { fontSize: 16, bold: true });
   box(s, 0.6, 2.0, 6.0, 1.45, PANEL);
   bullets(s, ["object detection in images", "box the vehicles in a traffic camera image",
     "show where each person stands in a crowd photo"], 0.9, 2.15, 5.5, 1.2, { fontSize: 14, color: INK2 });
@@ -350,62 +389,61 @@ pres.addSection({ title: "Addressing and S-FIB" });
     { name: "Request vs same-class cards", labels: sim.bins, values: sim.same_pct },
   ], chartOpts({ x: 6.95, y: 1.45, w: 5.8, h: 4.55, colors: ["B4B2A9", "2A78D6"], title: "Cosine similarity, unseen paraphrases",
     xTitle: "cosine similarity", yTitle: "% of pairs", extra: { barDir: "col", barGapWidthPct: 20, barGrouping: "clustered" } }));
-  text(s, `τ = ${TAU.tau} · top-1 class accuracy ${pct(TAU.test_top1)} · false accept ${pct(TAU.test_false_accept, 1)}`,
+  text(s, `τ = ${TAU.tau} · best agent right ${pct(TAU.test_top1)} · ${tops.length} encoders: ${encRange}`,
     6.95, 6.1, 5.8, 0.4, { fontSize: 13, color: INK2, align: "center" });
 }
 
 // 7 ---- S-FIB
 {
-  const mean_ = get("ablation_summary", "greedy", "success_rate", "mean");
-  const k4 = get("ablation_summary", "greedy", "success_rate", "k=4");
-  const exact = get("ablation_summary", "greedy", "success_rate", "exact");
+  const v = (name, metric) => get("ablation_summary", "greedy", metric, name);
   const s = content("Addressing and S-FIB", "The S-FIB: what lies behind each neighbour", "emre",
-    `A normal router says 'for this IP range, use that port'. Our router says 'behind this neighbour there are these kinds of capabilities' - like the sign at a mall corridor: 'electronics and books this way'. Averaging all vectors behind a neighbour blurs different capabilities, so we keep k = 4 representative vectors per neighbour (k-means) and score a neighbour by its best representative. The table has a fixed size per neighbour: it does not grow with the number of agents. In the ablation, greedy forwarding reaches ${pct(mean_)} with a plain mean, ${pct(k4)} with k = 4 and ${pct(exact)} with the uncompressed table.`);
+    `A normal router says 'for this IP range, use that port'. Our router says 'behind this neighbour there are these capabilities' - like the sign at a mall corridor. Routers exchange only what fits in a message. Agents attached to a neighbour keep their own row; everything further away is compressed at every hop into k = 8 representative vectors, so a message does not grow with the number of agents. In the ablation, greedy forwarding reaches ${pct(v("k=8, no tier", "success_rate"))} with summaries only, ${pct(v("k=8", "success_rate"))} with the two-tier table and ${pct(v("exact", "success_rate"))} with one row per agent, which costs ${kb(v("exact", "ctrl_kB_per_s"))} per second instead of ${kb(v("k=8", "ctrl_kB_per_s"))}. Under this table we also changed the delivery rule: a router keeps forwarding when a neighbour advertises a clearly better candidate.`);
   const head = (t) => ({ text: t, options: { bold: true, color: WHITE, fill: { color: NAVY } } });
   const rows = [
-    [head("Neighbour"), head("k = 4 representative capabilities"), head("Min hops")],
-    ["gNB 7 (Xn)", "object detection · OCR · face recognition · image captioning", "1"],
-    ["gNB 9 (Xn)", "translation · summarization · speech-to-text · grammar", "2"],
-    ["Core 12 (backhaul)", "cluster centres of everything within R hops, incl. the cloud", "2"],
+    [head("Behind neighbour"), head("What the table holds"), head("Hops")],
+    ["agents attached to it", "one row per agent (their real vectors)", "1"],
+    ["everything further", "k = 8 representatives, recomputed at every hop", "2 … R"],
+    ["size of a message", "attached agents + 8 rows × 396 B, no matter how many agents", "–"],
   ].map((r, i) => (i === 0 ? r : r.map((c) => ({ text: c, options: { color: INK } }))));
-  s.addTable(rows, { x: 0.6, y: 1.6, w: 7.3, colW: [1.8, 4.4, 1.1], fontSize: 14, fontFace: "Calibri",
+  s.addTable(rows, { x: 0.6, y: 1.6, w: 7.3, colW: [2.1, 4.3, 0.9], fontSize: 14, fontFace: "Calibri",
     border: { type: "solid", color: GRID, pt: 1 }, rowH: 0.72, valign: "middle", margin: 0.08 });
-  text(s, "Illustrative S-FIB of one gNB + edge router", 0.6, 4.6, 7.3, 0.35, { fontSize: 12, color: MUTED });
   box(s, 8.3, 1.6, 4.43, 4.9, TINT);
   text(s, "IP FIB vs S-FIB", 8.6, 1.8, 3.9, 0.45, { fontSize: 18, bold: true, fontFace: "Cambria" });
   bullets(s, ["IP: prefix → output port", "S-FIB: neighbour → capability summary",
-    "Score of a neighbour = best cosine with its representatives",
-    "k-means keeps distinct capabilities apart; a mean blurs them", "Fixed size per neighbour, independent of the agent count"],
+    "Score of a neighbour = best cosine with its rows",
+    "A router only ever receives what its neighbours send: summaries of summaries",
+    "Handover: withdraw and announce, forwarded only if a summary moves"],
   8.6, 2.35, 3.9, 4.0, { fontSize: 14 });
-  stat(s, pct(mean_), "greedy success with a mean summary", 0.6, 5.05, 2.3, M.greedy.color);
-  stat(s, pct(k4), "with k = 4 representatives", 3.1, 5.05, 2.3, M.greedy.color);
-  stat(s, pct(exact), "with the full table", 5.6, 5.05, 2.3, M.greedy.color);
+  stat(s, pct(v("k=8, no tier", "success_rate")), `summaries only · ${kb(v("k=8, no tier", "ctrl_kB_per_s"))}/s`, 0.6, 5.05, 2.3, M.greedy.color);
+  stat(s, pct(v("k=8", "success_rate")), `two-tier · ${kb(v("k=8", "ctrl_kB_per_s"))}/s`, 3.1, 5.05, 2.3, M.greedy.color);
+  stat(s, pct(v("exact", "success_rate")), `one row per agent · ${kb(v("exact", "ctrl_kB_per_s"))}/s`, 5.6, 5.05, 2.3, M.greedy.color);
 }
 
 // 8 ---- radius
 {
   const r = S.radius.values;
+  const methods = ["agentroute", "greedy", "greedy_load"];
   const s = content("Addressing and S-FIB", "Advertisements reach R hops, not the whole network", "emre",
-    `Agents do not advertise to the whole network, only R hops away. Larger R means better information but more control messages. With ${num(1000)} agents, going from R = ${r[0]} to R = ${r[r.length - 1]} moves greedy from ${pct(get("radius", "greedy", "success_rate", r[0]))} to ${pct(get("radius", "greedy", "success_rate", r[r.length - 1]))} success, while control messages grow from ${num(get("radius", "greedy", "ctrl_msgs", r[0]))} to ${num(get("radius", "greedy", "ctrl_msgs", r[r.length - 1]))} per run. We use R = 3 as the default.`);
-  methodLines(s, "radius", "success_rate", SEM, { x: 0.6, y: 1.45, w: 6.0, h: 5.0, scale: 100, fmt: '0"%"', min: 0,
+    `Agents do not advertise to the whole network, only R hops away. With ${num(1000)} agents, going from R = ${r[0]} to R = ${r[r.length - 1]} moves greedy from ${pct(get("radius", "greedy", "success_rate", r[0]))} to ${pct(get("radius", "greedy", "success_rate", r[r.length - 1]))} success, and control traffic from ${kb(get("radius", "greedy", "ctrl_kB_per_s", r[0]))} to ${kb(get("radius", "greedy", "ctrl_kB_per_s", r[r.length - 1]))} per second. Success peaks at R = 2 (${pct(get("radius", "greedy", "success_rate", 2))}): beyond it nothing improves, and control traffic hardly grows because every link carries the same few representatives. So we use R = 2, which is also SPFR's control horizon.`);
+  methodLines(s, "radius", "success_rate", methods, { x: 0.6, y: 1.45, w: 6.0, h: 5.0, scale: 100, fmt: '0"%"', min: 0,
     title: "Success rate", xTitle: "advertisement radius R (hops)", yTitle: "success" });
-  s.addChart(pres.charts.LINE, [{ name: "Same S-FIB for all semantic methods", labels: r.map(String),
-    values: S.radius.methods.greedy.ctrl_msgs }], chartOpts({ x: 6.75, y: 1.45, w: 6.0, h: 5.0, colors: [INK2], min: 0,
-    title: "Control messages per run", xTitle: "advertisement radius R (hops)", yTitle: "messages" }));
+  s.addChart(pres.charts.LINE, [{ name: "Same S-FIB for all these methods", labels: r.map(String),
+    values: S.radius.methods.greedy.ctrl_kB_per_s }], chartOpts({ x: 6.75, y: 1.45, w: 6.0, h: 5.0, colors: [INK2], min: 0,
+    title: "Control traffic (kB/s)", xTitle: "advertisement radius R (hops)", yTitle: "kB/s" }));
 }
 
-// 9 ---- greedy limits
+// 9 ---- what limits success
 {
   const d = S.scale.drops || {};
-  const g = d.greedy || {};
-  const s = content("Addressing and S-FIB", "Greedy works until the best neighbour is busy", "emre",
-    `Greedy forwarding sends the packet to the most similar neighbour at every hop. It works: with ${num(mid)} agents it delivers ${pct(gr("success_rate", mid))} of requests, close to the central registry (${pct(rg("success_rate", mid))}) without any central server. But greedy only looks at similarity. In the same runs ${pct(g.queue, 1)} of its requests are lost in overflowing queues of busy routers and ${pct(g.link, 1)} on bad links. So the question is: what if the most similar neighbour is congested, or the device is in the middle of a handover? Bekir Goktepe continues.`);
-  stat(s, pct(gr("success_rate", mid)), `greedy success with ${num(mid)} agents`, 0.6, 1.6, 3.6, M.greedy.color);
-  stat(s, pct(rg("success_rate", mid)), "central registry, same runs", 0.6, 3.15, 3.6, M.registry.color);
-  const reasons = [["wrong_agent", "Wrong agent accepted"], ["not_found", "No match found"], ["ttl", "TTL expired"],
+  const oracle = gr("oracle_best", mid);
+  const s = content("Addressing and S-FIB", "Most failures come from matching, not routing", "emre",
+    `With ${num(mid)} agents, a method that knows every attached agent would still only succeed on ${pct(oracle)} of requests: for the rest, the most similar agent is of the wrong class or nothing passes tau. That is the dashed ceiling on the later charts. Greedy forwarding delivers ${pct(gr("success_rate", mid))}, the central registry ${pct(rg("success_rate", mid))}, flooding ${pct(fl("success_rate", mid))}. The remaining failures are wrong matches, and packets that never find a match and run out of TTL. So the next question: what if the most similar neighbour is congested, or a better match is one hop away? Bekir Goktepe continues.`);
+  stat(s, pct(oracle), `matching ceiling with ${num(mid)} agents`, 0.6, 1.6, 3.6, INK);
+  stat(s, pct(gr("success_rate", mid)), "greedy semantic forwarding", 0.6, 3.15, 3.6, M.greedy.color);
+  const reasons = [["wrong_agent", "Wrong agent"], ["not_found", "No match found"], ["ttl", "TTL expired"],
     ["queue", "Queue overflow"], ["link", "Link loss"], ["handover", "Agent in handover"], ["stale_location", "Stale location"],
     ["registry_queue", "Registry overloaded"], ["node_down", "Node down"]];
-  const methods = ["agentroute", "greedy", "flooding", "registry"].filter((m) => d[m]);
+  const methods = ["agentroute", "greedy", "greedy_load", "spfr", "flooding", "registry"].filter((m) => d[m]);
   const palette = ["8A8984", "B4B2A9", "6250D6", "D03B3B", "EB6834", "EDA100", "E87BA4", "1C5CAB", "3B3A37"];
   const series = [];
   const colors = [];
@@ -417,18 +455,18 @@ pres.addSection({ title: "Addressing and S-FIB" });
     title: `Why requests fail (${num(mid)} agents, % of requests)`, legendPos: "b", fmt: '0"%"',
     extra: { barDir: "bar", barGrouping: "stacked", barGapWidthPct: 60 } }));
   box(s, 0.6, 5.55, 12.13, 0.95, TINT);
-  text(s, "What if the most similar neighbour is congested, or the device is in the middle of a handover?",
+  text(s, "What if the most similar neighbour is congested, or a better match is one hop away?",
     0.9, 5.7, 11.6, 0.65, { fontSize: 20, bold: true, fontFace: "Cambria", color: "1C5CAB", valign: "middle" });
 }
 
 // 10 ---- DQN
 pres.addSection({ title: "Learning, mobility, evaluation" });
 {
-  const s = content("Learning, mobility, evaluation", "One shared DQN scores every neighbour", "goktepe",
-    "BEKIR GOKTEPE. The DQN replaces the greedy rule. Because routers have different numbers of neighbours, the network does not output one value per action: it scores each neighbour separately - input is that neighbour's feature vector, output is one Q-value - and the packet goes to the highest. All routers share one network, trained offline in the simulator and copied to every node. Reward per hop is minus the normalised delay, plus a bonus on delivery and a penalty on any drop; the scales are normalised so that the agent neither drops packets early nor wanders forever. Training is Double DQN with replay and a target network; the next-state value is the max Q over the next router's neighbours, which is Q-routing with a neural network. Like navigation apps: the straight line is not always the fastest road.");
-  text(s, "Features of one neighbour (14)", 0.6, 1.5, 4.2, 0.4, { fontSize: 16, bold: true });
+  const s = content("Learning, mobility, evaluation", "One shared DQN: deliver here, or forward where?", "goktepe",
+    "BEKIR GOKTEPE. The DQN takes the routing decision. Because routers have different numbers of neighbours, the network does not output one value per action: it scores each action separately - input is that action's feature vector, output is one Q-value. The actions are the neighbours, plus 'deliver to the best local agent', so the network also decides whether a local match is good enough. All routers share one network, trained offline in the simulator. Reward per decision is minus the normalised delay, plus one on correct delivery, minus one on a drop or a wrong agent. Training is Double DQN with replay and a target network; the next-state value is the max Q over the next router's actions, which is Q-routing with a neural network.");
+  text(s, "Features of one action (15)", 0.6, 1.5, 4.2, 0.4, { fontSize: 16, bold: true });
   const feats = ["S-FIB similarity: max, mean, gap to best", "match above τ, hop distance", "queue occupancy (hello)",
-    "link quality and delay", "neighbour in handover", "TTL left, already visited", "node type: gNB / core / cloud"];
+    "link quality and delay", "neighbour in handover", "TTL left, already visited", "type: gNB / core / cloud / deliver here"];
   feats.forEach((f, i) => {
     box(s, 0.6, 2.0 + i * 0.56, 4.2, 0.46, PANEL);
     text(s, f, 0.78, 2.07 + i * 0.56, 3.9, 0.34, { fontSize: 13, color: INK });
@@ -436,20 +474,20 @@ pres.addSection({ title: "Learning, mobility, evaluation" });
   arrow(s, 4.9, 3.9, 5.5, 3.9, INK2);
   box(s, 5.55, 2.85, 2.6, 2.1, TINT, "2A78D6");
   text(s, "Shared MLP", 5.7, 3.05, 2.3, 0.45, { fontSize: 18, bold: true, align: "center", fontFace: "Cambria" });
-  text(s, "14 → 64 → 64 → 1\nsame weights in\nevery router", 5.7, 3.55, 2.3, 1.2, { fontSize: 13, color: INK2, align: "center" });
+  text(s, "15 → 64 → 64 → 1\nsame weights in\nevery router", 5.7, 3.55, 2.3, 1.2, { fontSize: 13, color: INK2, align: "center" });
   arrow(s, 8.2, 3.9, 8.8, 3.9, INK2);
-  const qs = [0.55, 0.9, 0.35];
-  qs.forEach((q, i) => {
+  const qs = [["here", 0.45], ["n1", 0.9], ["n2", 0.35]];
+  qs.forEach(([n, q], i) => {
     const y = 2.95 + i * 0.62;
-    text(s, `Q(n${i + 1})`, 8.9, y + 0.05, 0.8, 0.36, { fontSize: 13, color: INK2 });
+    text(s, `Q(${n})`, 8.9, y + 0.05, 0.8, 0.36, { fontSize: 13, color: INK2 });
     s.addShape(pres.shapes.RECTANGLE, { x: 9.7, y: y + 0.08, w: 2.2 * q, h: 0.32,
       fill: { color: i === 1 ? "2A78D6" : "B4B2A9" }, line: { type: "none" } });
   });
-  text(s, "argmax → next hop n2", 8.9, 4.85, 3.8, 0.4, { fontSize: 14, bold: true, color: "1C5CAB" });
+  text(s, "argmax → forward to n1", 8.9, 4.85, 3.8, 0.4, { fontSize: 14, bold: true, color: "1C5CAB" });
   box(s, 5.55, 5.45, 7.18, 1.2, PANEL);
   text(s, [
     { text: "Reward  ", options: { bold: true } },
-    { text: "per hop −(0.05 + delay / 100 ms) · delivered +1 · dropped −1", options: { breakLine: true } },
+    { text: "per decision −(0.05 + delay / 100 ms) · right agent +1 · drop or wrong agent −1", options: { breakLine: true } },
     { text: "Training  ", options: { bold: true } },
     { text: "Double DQN, replay 50k, target net, ε 1 → 0.05, 300 random scenarios" },
   ], 5.75, 5.6, 6.9, 0.95, { fontSize: 13, color: INK });
@@ -457,40 +495,44 @@ pres.addSection({ title: "Learning, mobility, evaluation" });
 
 // 11 ---- learning curve
 if (train) {
-  const g = S.train_gnn;
   const best = train.val_success[bestIdx];
-  const bestT = train.val_time_ms[bestIdx];
-  const v = verb(best, train.greedy_val_success, 0.005);
-  const faster = bestT < train.greedy_val_time_ms - 0.5;
-  const title = `Training: the DQN ${v} greedy${faster ? " and delivers faster" : ""}`;
-  const s = content("Learning, mobility, evaluation", title, "goktepe",
-    `Training curve on fixed validation scenarios, measured every 10 episodes with exploration switched off. The greedy line is the reference. We keep the weights with the best validation return, at episode ${train.episode[bestIdx]}: success ${pct(best, 1)} versus ${pct(train.greedy_val_success, 1)} for greedy, and ${bestT.toFixed(1)} ms versus ${train.greedy_val_time_ms.toFixed(1)} ms completion time. Honest reading: the learned policy does not find many more agents - matching quality limits that - but it routes around busy routers and bad links, which shows up as time.`);
+  const bestRet = train.val_return[bestIdx];
+  const v = verb(bestRet, Math.max(train.greedy_val_return, train.load_val_return), 0.01);
+  const first = train.val_return[0];
+  const s = content("Learning, mobility, evaluation", `Validation: the DQN ${v} the hand-written rules`, "goktepe",
+    `Everything here is measured with exploration switched off, on fixed validation scenarios. We do not show the training return, because that one rises anyway as exploration falls. The dashed lines are greedy and load-aware greedy, measured with the same reward. Validation return of the DQN starts at ${first.toFixed(2)} and its best is ${bestRet.toFixed(2)} at episode ${train.episode[bestIdx]}. Greedy has ${train.greedy_val_return.toFixed(2)}, load-aware greedy ${train.load_val_return.toFixed(2)}. Success: DQN ${pct(best, 1)}, greedy ${pct(train.greedy_val_success, 1)}, load-aware ${pct(train.load_val_success, 1)}.`);
   const labels = train.episode.map(String);
-  const series = [{ name: M.agentroute.name, labels, values: train.val_success.map((x) => x * 100) }];
-  const colors = [M.agentroute.color];
-  if (g && g.episode.length === train.episode.length) { series.push({ name: M.agentroute_gnn.name, labels, values: g.val_success.map((x) => x * 100) }); colors.push(M.agentroute_gnn.color); }
-  series.push({ name: "Greedy (reference)", labels, values: labels.map(() => train.greedy_val_success * 100) });
-  colors.push(M.greedy.color);
-  s.addChart(pres.charts.LINE, series, chartOpts({ x: 0.6, y: 1.45, w: 6.0, h: 5.0, colors, fmt: '0"%"',
-    title: "Validation success", xTitle: "training episode", yTitle: "success", extra: { lineDataSymbolSize: 5 } }));
-  const tseries = [{ name: M.agentroute.name, labels, values: train.val_time_ms }];
-  const tcolors = [M.agentroute.color];
-  if (g && g.episode.length === train.episode.length) { tseries.push({ name: M.agentroute_gnn.name, labels, values: g.val_time_ms }); tcolors.push(M.agentroute_gnn.color); }
-  tseries.push({ name: "Greedy (reference)", labels, values: labels.map(() => train.greedy_val_time_ms) });
-  tcolors.push(M.greedy.color);
-  s.addChart(pres.charts.LINE, tseries, chartOpts({ x: 6.75, y: 1.45, w: 6.0, h: 5.0, colors: tcolors, min: 0,
-    title: "Validation completion time (ms)", xTitle: "training episode", yTitle: "ms", extra: { lineDataSymbolSize: 5 } }));
+  const series = (key, loadKey, greedyKey, f) => [
+    { name: M.agentroute.name, labels, values: train[key].map(f) },
+    ...(S.train_gnn && S.train_gnn.episode.length === train.episode.length ? [{ name: M.agentroute_gnn.name, labels, values: S.train_gnn[key].map(f) }] : []),
+    { name: "Greedy (reference)", labels, values: labels.map(() => f(train[greedyKey])) },
+    { name: "Load-aware greedy (reference)", labels, values: labels.map(() => f(train[loadKey])) },
+  ];
+  const colors = S.train_gnn && S.train_gnn.episode.length === train.episode.length
+    ? [M.agentroute.color, M.agentroute_gnn.color, M.greedy.color, M.greedy_load.color]
+    : [M.agentroute.color, M.greedy.color, M.greedy_load.color];
+  s.addChart(pres.charts.LINE, series("val_return", "load_val_return", "greedy_val_return", (x) => x),
+    chartOpts({ x: 0.6, y: 1.45, w: 6.0, h: 5.0, colors, title: "Validation return per request", xTitle: "training episode",
+      yTitle: "return", extra: { lineDataSymbolSize: 5 } }));
+  s.addChart(pres.charts.LINE, series("val_success", "load_val_success", "greedy_val_success", (x) => x * 100),
+    chartOpts({ x: 6.75, y: 1.45, w: 6.0, h: 5.0, colors, fmt: '0"%"', title: "Validation success", xTitle: "training episode",
+      yTitle: "success", legend: false, extra: { lineDataSymbolSize: 5 } }));
 }
 
 // 12 ---- mobility
 {
-  const sp = S.mobility.values;
-  const hi = sp[sp.length - 1];
-  const hc = JSON.parse(fs.readFileSync(path.join(ROOT, "results", "raw", "handover_cost.json"), "utf8"));
+  const sp_ = S.mobility.values;
+  const hi = sp_[sp_.length - 1];
+  const hc = S.handover_cost;
   const sizes = Object.keys(hc).map(Number).sort((a, b) => a - b);
-  const top = hc[String(sizes[sizes.length - 1])];
-  const s = content("Learning, mobility, evaluation", "A handover only updates its neighbourhood", "goktepe",
-    `When a phone changes cell, the old gNB withdraws its entries and the new gNB announces them, only within R hops, and a message is sent only where an advertised summary really changes; the whole network is not re-flooded. Measured: one handover costs ${sizes.map((n) => `${hc[n].msgs_per_handover} messages at ${num(n)} agents`).join(", ")} - roughly constant - while one full advertisement round grows from ${num(hc[sizes[0]].full_round_msgs)} to ${num(top.full_round_msgs)} messages. At ${num(sizes[sizes.length - 1])} agents a handover costs ${pct(top.share_of_full_round, 1)} of a full round, with ${top.handovers_per_s} handovers per second. The chart: success as agents move faster; at ${hi} m/s AgentRoute delivers ${pct(get("mobility", "agentroute", "success_rate", hi))}, greedy ${pct(get("mobility", "greedy", "success_rate", hi))}, the registry ${pct(get("mobility", "registry", "success_rate", hi))}. Mobility costs every method only 1-2 points because handovers take 50 ms and the updates spread within milliseconds.`);
+  const n = sizes[sizes.length - 1];
+  const top = hc[String(n)];
+  const lo = get("mobility", "greedy", "ctrl_kB_per_s", 0.0);
+  const up = get("mobility", "greedy", "ctrl_kB_per_s", hi);
+  const rlo = get("mobility", "registry3", "ctrl_kB_per_s", 0.0);
+  const rup = get("mobility", "registry3", "ctrl_kB_per_s", hi);
+  const s = content("Learning, mobility, evaluation", "Mobility costs messages, not success", "goktepe",
+    `When a phone changes cell, the old gNB withdraws it and the new gNB announces it within R hops, and a router passes the update on only if one of its summaries really moves. Measured at ${num(n)} agents: ${top.msgs_per_handover} messages per handover, ${top.handover_msgs_per_s} messages per second in total, ${top.handover_kB_per_s} kB/s, next to ${top.refresh_kB_per_s} kB/s of periodic refresh. Success barely depends on speed for any method - at ${hi} m/s greedy delivers ${pct(get("mobility", "greedy", "success_rate", hi))} and a three-replica registry ${pct(get("mobility", "registry3", "success_rate", hi))}, and with 150 metre cells ${pct(get("mobility_small", "greedy", "success_rate", hi))} and ${pct(get("mobility_small", "registry3", "success_rate", hi))} - because an agent is in handover for only 50 ms. So mobility is a cost problem, not a reachability problem: from 0 to ${hi} m/s, control traffic goes from ${kb(lo)} to ${kb(up)} per second for the S-FIB, and from ${kb(rlo)} to ${kb(rup)} for the registry.`);
   box(s, 0.6, 1.5, 4.6, 5.0, PANEL);
   text(s, "Incremental S-FIB update", 0.9, 1.7, 4.0, 0.45, { fontSize: 18, bold: true, fontFace: "Cambria" });
   circleNum(s, 1, 0.9, 2.35, CRIT, 0.42);
@@ -498,24 +540,24 @@ if (train) {
   circleNum(s, 2, 0.9, 3.05, GOOD, 0.42);
   text(s, "New cell announces it within R hops", 1.45, 3.08, 3.6, 0.6, { fontSize: 14 });
   circleNum(s, 3, 0.9, 3.75, "6B6A66", 0.42);
-  text(s, "Messages only where a summary really changes", 1.45, 3.78, 3.6, 0.6, { fontSize: 14 });
-  stat(s, String(top.msgs_per_handover), `messages per handover at ${num(sizes[sizes.length - 1])} agents`, 0.9, 4.6, 2.0, "1C5CAB");
-  stat(s, pct(top.share_of_full_round, 1), `of a full re-advertisement (${num(top.full_round_msgs)} messages)`, 3.0, 4.6, 2.1, INK2);
-  methodLines(s, "mobility", "success_rate", ALL, { x: 5.45, y: 1.45, w: 7.3, h: 5.05, scale: 100, fmt: '0"%"', min: 0,
-    title: `Success vs speed (${num(1000)} agents)`, xTitle: "mobile agent speed (m/s)", yTitle: "success" });
+  text(s, "A router forwards it only if a summary moves", 1.45, 3.78, 3.6, 0.6, { fontSize: 14 });
+  stat(s, String(top.msgs_per_handover), `messages per handover at ${num(n)} agents`, 0.9, 4.6, 2.0, "1C5CAB");
+  stat(s, `${kb(top.handover_kB_per_s)}/s`, `handovers, next to ${kb(top.refresh_kB_per_s)}/s of refresh`, 3.0, 4.6, 2.1, INK2);
+  successWithCeiling(s, "mobility_small", ALL, { x: 5.45, y: 1.45, w: 7.3, h: 5.05,
+    title: `Success vs speed (${num(1000)} agents, 150 m cells)`, xTitle: "mobile agent speed (m/s)" });
 }
 
 // 13 ---- setup
 {
   const s = content("Learning, mobility, evaluation", "Evaluation setup", "goktepe",
-    "Discrete-event simulator in Python with SimPy and NetworkX. gNB + edge routers on a cell grid, a core network and a cloud; the number of cells grows with the number of agents, up to 450 routers. Agents: 40 percent fixed edge agents, 50 percent mobile with random waypoint, 10 percent in the cloud. Capability supply is long-tailed (Zipf): a few capabilities are common, most are rare. Requests use 150 paraphrases never seen in training. Five methods plus the GNN variant, five seeds per point, 95 percent confidence intervals. Everything runs on a laptop CPU.");
+    "Discrete-event simulator in Python with SimPy and NetworkX. gNB + edge routers on a cell grid, a core network and a cloud; the number of cells grows with the number of agents, up to 450 routers. Agents: 40 percent fixed edge agents, 50 percent mobile with random waypoint, 10 percent in the cloud. Requests use 150 paraphrases never seen in training. We deliberately added strong rivals: a load-aware heuristic, SPFR's rule, a replicated registry and a semantic DHT at the application layer. Chord with exact keys finds nothing by construction, because our requests never repeat a capability text; it is only a cost reference. Ten seeds per point, 95 percent confidence intervals. Times include everything a method must do, including the flooding window and the answer traffic.");
   const cards = [
     ["Topology", "gNB + edge cells, core grid, cloud; 9 → 400 cells, up to 450 routers; queues, bursty hotspots, lossy links"],
-    ["Agents", "40% fixed edge, 50% mobile (random waypoint, handover with hysteresis), 10% cloud; Zipf capability supply"],
-    ["Requests", "150 unseen paraphrases of 50 capability classes, 10 requests/s, TTL 16"],
-    ["Baselines", "central registry (DNS-like), TTL-limited flooding, Chord exact match, greedy semantic (same S-FIB)"],
-    ["Metrics", "discovery success, completion time, hops, control + query messages"],
-    ["Runs", "SimPy + NetworkX, 5 seeds per point, 95% CI, 100 → 10,000 agents, laptop CPU"],
+    ["Agents", "40% fixed edge, 50% mobile (random waypoint, handover with hysteresis), 10% cloud; every agent has its own vector"],
+    ["Requests", "150 unseen paraphrases of 50 capability classes, 10 requests/s (rate swept 1–300/s), TTL 16"],
+    ["Rivals", "greedy, load-aware greedy, SPFR-style · flooding · registry (1 and 3 replicas) · semantic DHT · Chord exact"],
+    ["Metrics", "success vs matching ceiling, time on requests both delivered, hops, control kB/s, query kB/request"],
+    ["Runs", "SimPy + NetworkX, 10 seeds per point, paired 95% CI, 100 → 10,000 agents, laptop CPU"],
   ];
   cards.forEach((c, i) => {
     const x = 0.6 + (i % 3) * 4.1;
@@ -528,31 +570,50 @@ if (train) {
 
 // 14 ---- scale
 {
-  const v = verb(ar("success_rate"), gr("success_rate"));
   const s = content("Learning, mobility, evaluation", `Scaling to ${num(big)} agents`, "goktepe",
-    `Left: success rate from 100 to ${num(big)} agents. At ${num(big)} agents AgentRoute delivers ${pct(ar("success_rate"))} (it ${v} greedy at ${pct(gr("success_rate"))}), flooding ${pct(fl("success_rate"))}, the registry ${pct(rg("success_rate"))}, and Chord finds nothing, because a paraphrase hashes to a different key - that is the reference that shows why semantic matching is needed. Right: messages per request on a log scale. Flooding grows to ${num(fl("msgs_per_query"))} messages per request; AgentRoute needs ${num(ar("msgs_per_query"))}, most of it periodic advertisements. Completion time: AgentRoute ${ms(ar("time_ms"))}, registry ${ms(rg("time_ms"))}.`);
+    `Left: success from 100 to ${num(big)} agents, with the matching ceiling as a dashed line. At ${num(big)} agents the ceiling is ${pct(gr("oracle_best"))}. Greedy delivers ${pct(gr("success_rate"))}, the DQN ${pct(ar("success_rate"))}, load-aware greedy ${pct(gl("success_rate"))}, SPFR-style ${pct(sp("success_rate"))}, flooding ${pct(fl("success_rate"))}, the central registry ${pct(rg("success_rate"))}, three replicas ${pct(r3("success_rate"))}, the semantic DHT ${pct(dh("success_rate"))}. Chord is zero by construction. Right: control traffic for the whole network. Times at ${num(big)} agents: forwarding ${ms(gr("time_ms"))}, registry ${ms(rg("time_ms"))}, DHT ${ms(dh("time_ms"))}, flooding ${ms(fl("time_ms"))}.`);
   const lab = (x) => (x >= 1000 ? `${x / 1000}K` : String(x));
-  methodLines(s, "scale", "success_rate", ALL, { x: 0.6, y: 1.45, w: 6.0, h: 5.05, scale: 100, fmt: '0"%"', min: 0,
-    labelFn: lab, title: "Discovery success", xTitle: "number of agents", yTitle: "success" });
-  methodLines(s, "scale", "msgs_per_query", ALL, { x: 6.75, y: 1.45, w: 6.0, h: 5.05, log: true, labelFn: lab,
-    title: "Messages per request (log scale)", xTitle: "number of agents", yTitle: "messages", legend: false });
+  successWithCeiling(s, "scale", ALL, { x: 0.6, y: 1.45, w: 6.0, h: 5.05, labelFn: lab, title: "Discovery success", xTitle: "number of agents" });
+  methodLines(s, "scale", "ctrl_kB_per_s", ALL.filter((m) => m !== "flooding"), { x: 6.75, y: 1.45, w: 6.0, h: 5.05, log: true, labelFn: lab,
+    title: "Control traffic, whole network (kB/s, log)", xTitle: "number of agents", yTitle: "kB/s", legend: false });
 }
 
-// 15 ---- robustness
+// 15 ---- traffic vs request rate
+{
+  const e = S.rate;
+  const labels = e.values.map(String);
+  const methods = ["agentroute", "spfr", "flooding", "registry3", "sdht"].filter((m) => e.methods[m]);
+  const total = (m, i) => e.methods[m].ctrl_kB_per_s[i] + e.methods[m].query_kB_per_query[i] * e.values[i];
+  const series = methods.map((m) => ({ name: M[m].name, labels, values: e.values.map((_, i) => total(m, i)) }));
+  const cross = e.values.find((_, i) => total("flooding", i) > total("agentroute", i));
+  const s = content("Learning, mobility, evaluation", "Who is cheaper depends on the request rate", "goktepe",
+    `Control traffic is paid per second, query traffic per request, so 'messages per request' depends on the rate one assumes. This chart shows the total traffic for ${num(1000)} agents. Flooding has no control traffic, so it wins when requests are rare. ${cross ? `From about ${cross} requests per second flooding costs more than semantic forwarding.` : "In the range we tested flooding stays cheaper."} A registry is the cheapest at any rate, because it sends small messages; what it pays is the extra latency and the dependence on its servers.`);
+  s.addChart(pres.charts.LINE, series, chartOpts({ x: 0.6, y: 1.45, w: 8.0, h: 5.05, log: true,
+    colors: methods.map((m) => M[m].color), title: `Total traffic, ${num(1000)} agents (kB/s, log)`, xTitle: "requests per second, whole network", yTitle: "kB/s" }));
+  box(s, 8.9, 1.6, 3.83, 4.9, PANEL);
+  text(s, "How to read this", 9.15, 1.8, 3.4, 0.45, { fontSize: 18, bold: true, fontFace: "Cambria" });
+  bullets(s, ["Flat part = control traffic, paid every second", "Rising part = traffic per request",
+    cross ? `Flooding overtakes forwarding at about ${cross} requests/s` : "Flooding stays below forwarding here",
+    "Registry: cheapest bytes, slower requests"], 9.15, 2.4, 3.4, 3.9, { fontSize: 14 });
+}
+
+// 16 ---- robustness
 {
   const fv = S.failure.values;
   const fmax = fv[fv.length - 1];
   const lv = S.load.values;
   const lmax = lv[lv.length - 1];
+  const heavy = scen(`1000 agents, load 4`, "agentroute vs greedy_load");
+  const rb = S.failure.registry_by_server[String(fmax)];
+  const regCase = `${pct(rb.up)} when its server survives (${rb.n_up} of ${rb.n_up + rb.n_down} seeds) and ${pct(rb.down)} when it does not`;
   const s = content("Learning, mobility, evaluation", "Robustness: failures and load", "goktepe",
-    `Left: a fraction of routers fails at one third of the run. With ${pct(fmax)} failed routers AgentRoute delivers ${pct(get("failure", "agentroute", "success_rate", fmax))}, greedy ${pct(get("failure", "greedy", "success_rate", fmax))}, the registry ${pct(get("failure", "registry", "success_rate", fmax))} - it is a single point of failure, and in some seeds its router is among the failed ones. Right: the load factor scales both requests and background traffic. At load ${lmax} AgentRoute delivers ${pct(get("load", "agentroute", "success_rate", lmax))} versus ${pct(get("load", "greedy", "success_rate", lmax))} for greedy and ${pct(get("load", "registry", "success_rate", lmax))} for the registry: under the heaviest load the learned policy ${heavyVerb} greedy, because more of its packets meet full queues (queue overflow, not TTL expiry: about 18% of requests against 12% for greedy). We have not analysed the cause yet. This is our main open issue.`);
-  methodLines(s, "failure", "success_rate", ALL, { x: 0.6, y: 1.45, w: 6.0, h: 5.05, scale: 100, fmt: '0"%"', min: 0,
-    labelFn: (x) => `${Math.round(x * 100)}%`, title: "Success vs failed routers", xTitle: "failed routers", yTitle: "success" });
-  methodLines(s, "load", "success_rate", ALL, { x: 6.75, y: 1.45, w: 6.0, h: 5.05, scale: 100, fmt: '0"%"', min: 0,
-    title: "Success vs network load", xTitle: "load factor", yTitle: "success", legend: false });
+    `Left: a fraction of routers fails at one third of the run. With ${pct(fmax)} failed routers greedy delivers ${pct(get("failure", "greedy", "success_rate", fmax))}, the central registry ${pct(get("failure", "registry", "success_rate", fmax))}, three replicas ${pct(get("failure", "registry3", "success_rate", fmax))}. The registry's mean hides two cases: ${regCase}. Replicas fix most of this. Right: the load factor scales both requests and background traffic. At load ${lmax}: DQN ${pct(get("load", "agentroute", "success_rate", lmax))}, greedy ${pct(get("load", "greedy", "success_rate", lmax))}, load-aware greedy ${pct(get("load", "greedy_load", "success_rate", lmax))}, flooding ${pct(get("load", "flooding", "success_rate", lmax))}.${heavy ? ` Paired on the same requests at load 4, DQN minus load-aware greedy is ${pairTxt(heavy)}.` : ""}`);
+  successWithCeiling(s, "failure", ALL, { x: 0.6, y: 1.45, w: 6.0, h: 5.05,
+    labelFn: (x) => `${Math.round(x * 100)}%`, title: "Success vs failed routers", xTitle: "failed routers" });
+  successWithCeiling(s, "load", ALL, { x: 6.75, y: 1.45, w: 6.0, h: 5.05, title: "Success vs network load", xTitle: "load factor", legend: false });
 }
 
-// 16 ---- demo video(s)
+// 17 ---- demo video(s)
 function videoSlide(file, title, notes) {
   const video = path.join(FIG, `${file}.mp4`);
   const poster = path.join(FIG, `${file}_poster.png`);
@@ -570,36 +631,37 @@ videoSlide("agentroute_demo", "Demo: a request routed by meaning",
     const say = (o) => (o.type === "deliver"
       ? `is delivered to a ${o.agent_class} agent in ${o.hops} hops, ${o.time_ms} ms`
       : `fails after ${o.hops} hops (${o.reason.replace("_", " ")})`);
-    videoSlide("greedy_vs_agentroute", "Same request: greedy vs learned next hop",
-      `Same network, same moment, same request ('${c.text}'), taken from the two demo logs. Orange halos are routers busy with background traffic at that moment. With greedy forwarding the request ${say(c.greedy)}; with the learned next hop it ${say(c.agentroute)}. This is one real example, not an average - the averages are on the previous slides.`);
+    videoSlide("greedy_vs_agentroute", "One selected example: greedy vs learned",
+      `Say this clearly: this is one hand-picked request, chosen because the two paths differ and the learned one does better. It only illustrates what a different decision looks like; the averages are on the other slides. Request: '${c.text}'. Orange halos are routers busy with background traffic. With greedy the request ${say(c.greedy)}; with the learned policy it ${say(c.agentroute)}.`);
   }
 }
 
-// 17 ---- takeaways
+// 18 ---- takeaways
 {
   const s = pres.addSlide({ masterName: "TITLE_DARK", sectionTitle: "Learning, mobility, evaluation" });
   s.addText("Takeaways", { placeholder: "title" });
+  const load = ciVerb(dqnVsLoad);
   const items = [
-    `Capability addresses + S-FIB find agents by meaning: ${pct(ar("success_rate"))} at ${num(big)} agents, where exact-match Chord finds ${pct(ch("success_rate"))}`,
-    `No central server and no flood: ${num(ar("msgs_per_query"))} messages per request vs ${num(fl("msgs_per_query"))} for flooding; ${ms(ar("time_ms"))} vs ${ms(rg("time_ms"))} for the registry`,
-    `One shared DQN learns the next hop: as successful as greedy and ${speedRange} faster, but it ${heavyVerb} greedy under the heaviest load`,
+    `Routing by meaning works without a server: at ${num(big)} agents greedy delivers ${pct(gr("success_rate"))} and the DQN ${pct(get("scale", "agentroute", "success_rate", big))} (ceiling ${pct(gr("oracle_best"))}), in ${ms(gr("time_ms"))} against ${ms(rg("time_ms"))} via a registry`,
+    `It is not free: a two-tier S-FIB costs ${kb(gr("ctrl_kB_per_s"))}/s, one row per agent (SPFR-style) ${kb(sp("ctrl_kB_per_s"))}/s for ${signed((sp("success_rate") - gr("success_rate")) * 100)} points, a registry only ${kb(rg("ctrl_kB_per_s"))}/s`,
+    `Learning: the DQN ${load} load-aware greedy at ${num(big)} agents (${pairTxt(dqnVsLoad)}). Matching quality, not routing, sets the ceiling`,
   ];
   items.forEach((t, i) => {
     circleNum(s, i + 1, 0.8, 3.45 + i * 0.85, "2A78D6", 0.5);
-    s.addText(t, { x: 1.5, y: 3.43 + i * 0.85, w: 11.0, h: 0.6, isTextBox: true, margin: 0, fontSize: 17,
+    s.addText(t, { x: 1.5, y: 3.43 + i * 0.85, w: 11.0, h: 0.72, isTextBox: true, margin: 0, fontSize: 16,
       color: WHITE, valign: "middle" });
   });
-  s.addText("Future work: on-device fine-tuning · signed capability advertisements · UDP overlay prototype · better encoders", {
+  s.addText("Future work: agent-side verification · learned capability representations · signed advertisements · UDP overlay prototype", {
     x: 0.8, y: 6.2, w: 11.7, h: 0.5, isTextBox: true, margin: 0, fontSize: 14, color: LIGHT });
-  s.addNotes("Close with the one sentence: packets are addressed to what an agent can do, and routers learn where to send them. Then future work: fine-tune the shared model on each router, signed advertisements against agents that lie about their capabilities, an overlay implementation over UDP like early IPv6 tunnels, and better sentence encoders - matching quality is the main limit today. One more sentence if there is time: we also replaced the fixed radio hop by a distance-dependent link model computed with NVIDIA Sionna (3GPP TR 38.901 channel, 5G NR block error rates, HARQ); success falls for every method and the central registry falls the most - details in the final report. Thank you, questions.");
+  s.addNotes(`Close with the honest summary. Routing by meaning works without a server and is fast. The compressed table is much cheaper than one row per agent and loses little. Learning: compared with a one-line load-balancing rule on the same requests, the DQN ${load} it: ${pairTxt(dqnVsLoad)}; against plain greedy ${pairTxt(dqnVsGreedy)}; against the SPFR-style rule ${pairTxt(dqnVsSpfr)}. The ceiling comes from the matching. If there is time: we also replaced the fixed radio hop by a distance-dependent link model computed with NVIDIA Sionna (3GPP TR 38.901 channel, 5G NR block error rates, HARQ). Success falls by 8 to 21 points, the registries fall the most because they cross the radio four times, and the DQN keeps its lead over greedy. Details are in the final report. Thank you, questions.`);
 }
 
-// 18 ---- backup: ablations
+// 19 ---- backup: ablations
 if (S.ablation_summary && S.ablation_header) {
   pres.addSection({ title: "Backup" });
-  const s = content("Backup", "Backup: S-FIB summary and header size", "goktepe",
-    "Backup slide. Left: what the per-neighbour summary costs in success. Right: compressing the intent header from 1,536 bytes (float32) to 388 bytes (int8) or 48 bytes (binary signs).");
-  const ORDER = { ablation_summary: ["mean", "k=2", "k=4", "k=8", "exact"], ablation_header: ["float32", "int8", "binary"] };
+  const s = content("Backup", "Backup: S-FIB content and header size", "goktepe",
+    "Backup slide. Left: what the table content costs in success. Right: compressing the intent header from 1,536 bytes (float32) to 388 bytes (int8) or 48 bytes (binary signs).");
+  const ORDER = { ablation_summary: ["mean", "k=8, no tier", "k=4", "k=8", "k=16", "exact"], ablation_header: ["float32", "int8", "binary"] };
   const mk = (exp, methods) => methods.map((m) => {
     const vals = S[exp].values;
     const order = ORDER[exp].filter((v) => vals.includes(v));
@@ -607,7 +669,7 @@ if (S.ablation_summary && S.ablation_header) {
       values: order.map((v) => S[exp].methods[m].success_rate[vals.indexOf(v)] * 100) };
   });
   s.addChart(pres.charts.BAR, mk("ablation_summary", ["agentroute", "greedy"]), chartOpts({ x: 0.6, y: 1.45, w: 6.0, h: 5.05,
-    colors: [M.agentroute.color, M.greedy.color], fmt: '0"%"', min: 0, title: "S-FIB summary per neighbour",
+    colors: [M.agentroute.color, M.greedy.color], fmt: '0"%"', min: 0, title: "S-FIB content per neighbour",
     yTitle: "success", extra: { barDir: "col", barGapWidthPct: 60 } }));
   const hdr = mk("ablation_header", ["agentroute", "greedy"]);
   const names = { float32: "float32 (1,536 B)", int8: "int8 (388 B)", binary: "binary (48 B)" };

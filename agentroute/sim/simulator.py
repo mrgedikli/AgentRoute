@@ -6,13 +6,14 @@ What is modelled
   - links: propagation delay and loss probability,
   - agents: fixed edge agents, cloud agents and random-waypoint mobile agents,
   - handovers with a short interruption, node failures with detection delay,
-  - six discovery methods: AgentRoute (DQN), AgentRoute (GNN), greedy
-    semantic forwarding, TTL-limited flooding, a central registry and Chord.
+  - ten discovery methods: AgentRoute (DQN and GNN), greedy and load-aware
+    greedy forwarding, SPFR-style forwarding, TTL-limited flooding, a central
+    and a replicated registry, Chord and a semantic DHT.
 
 Every method sees the same topology, mobility and query sequence for a given
 seed, because each kind of randomness has its own random stream.
 
-Responsible: Ömer Faruk Gedikli
+Responsible: Ömer Faruk Gedikli (v2 revision written with AI assistance)
 """
 import json
 import math
@@ -24,17 +25,19 @@ import simpy
 
 from agentroute.config import RESULTS, ROOT
 from agentroute.data.capabilities import class_names
-from agentroute.embeddings import load_dataset_vectors, quantize
+from agentroute.embeddings import agent_vectors, header_bytes, load_dataset_vectors, quantize
+from agentroute.forwarding import GreedyPolicy, LoadAwareGreedy, NodeView, Packet, SPFRPolicy, best_local_agent
 from agentroute.radio import RadioLUT
-from agentroute.forwarding import GreedyPolicy, NodeView, Packet, best_local_agent
-from agentroute.sfib import Advertiser
+from agentroute.sfib import MSG_OVERHEAD, Advertiser
 from agentroute.sim.events import EventLog
 from agentroute.sim.mobility import RandomWaypoint, handover_targets, nearest_cell
 from agentroute.sim.topology import area_bounds, build_topology
 
-METHODS = ["agentroute", "agentroute_gnn", "greedy", "flooding", "registry", "chord"]
-SEMANTIC = ("agentroute", "agentroute_gnn", "greedy")
+METHODS = ["agentroute", "agentroute_gnn", "greedy", "greedy_load", "spfr",
+           "flooding", "registry", "registry3", "chord", "sdht"]
+SEMANTIC = ("agentroute", "agentroute_gnn", "greedy", "greedy_load", "spfr")
 ADV_HOP_DELAY = 0.005   # an advertisement needs about 5 ms per hop
+SMALL_MSG = 64          # bytes of a heartbeat, location update or answer
 
 _DATA = None
 
@@ -57,6 +60,10 @@ def load_tau(cfg):
 def make_policy(method, cfg):
     if method == "greedy":
         return GreedyPolicy()
+    if method == "greedy_load":
+        return LoadAwareGreedy(cfg["forwarding"]["load_band"])
+    if method == "spfr":
+        return SPFRPolicy(cfg["forwarding"]["omega"])
     from agentroute.dqn.policy import DQNPolicy
     kind = "gnn" if method == "agentroute_gnn" else "mlp"
     key = "gnn_model_path" if kind == "gnn" else "model_path"
@@ -94,6 +101,8 @@ class Simulator:
         self.warmup = sim["warmup_s"]
         self.load = sim["load"]
         self.tau = load_tau(cfg)
+        self.accept_mode = cfg["forwarding"]["accept"]
+        self.omega = cfg["forwarding"]["omega"]
         self.ttl = cfg["forwarding"]["ttl"]
         self.header = cfg["forwarding"]["header"]
         self.radius = cfg["sfib"]["radius"]
@@ -106,6 +115,8 @@ class Simulator:
         data = dataset()
         self.card_vecs = data["desc_vecs"]
         self.card_class = data["desc_class"]
+        self.class_vecs = data["class_vecs"]
+        self.dim = self.card_vecs.shape[1]
         self.card_text = data["desc_text"]
         split = "test" if intents == "test" else "train"
         self.intent_vecs = data[f"{split}_vecs"]
@@ -129,13 +140,21 @@ class Simulator:
         self.known_dead = set()
         self.live = self.G.copy()
         self._paths = {}
+        self._dist = {}
         self._compute_upstream()
 
         self.log = EventLog(log_dir)
         self.results = []
         self.ctrl_msgs = 0
+        self.ctrl_bytes = 0
         self.query_msgs = 0
+        self.query_bytes = 0
+        self.query_size = header_bytes(self.header, self.dim) + MSG_OVERHEAD
         self.update_msgs = 0        # S-FIB messages triggered by handovers
+        self.update_bytes = 0
+        self.boot_bytes = 0         # the first control round, when every table is new
+        self._steady_start = None   # (ctrl, update) bytes where the steady window opens
+        self._steady_end = None
         self.handovers = 0
         self._init_agents()
 
@@ -144,20 +163,30 @@ class Simulator:
         if self.semantic:
             self.policy = policy if policy is not None else make_policy(method, cfg)
             sf = cfg["sfib"]
-            self.adv = Advertiser(self.G, self.card_vecs, self.radius, sf["summary"], sf["k"])
+            summary = "exact" if method == "spfr" else sf["summary"]
+            if method == "spfr":
+                self.radius = cfg["baselines"]["spfr_radius"]
+            self.adv = Advertiser(self.G, self.dim, self.radius, summary, sf["k"],
+                                  sf["change_threshold"], sf["encoding"], sf["exact_hops"],
+                                  sf["tier_aware_delta"], sf["warm_start"])
+            self.incremental = sf["refresh_mode"] == "incremental"
             for a in range(self.n_agents):
                 if self.attached[a] >= 0:
-                    self.adv.agents_at[self.attached[a]][self.agent_card[a]] += 1
+                    self.adv.local[self.attached[a]][a] = self.agent_vec[a]
             self.adv.build()
         elif method == "flooding":
             from agentroute.baselines.flooding import Flooding
-            self.flood = Flooding(self, cfg["baselines"]["flood_ttl"])
-        elif method == "registry":
+            self.flood = Flooding(self, cfg["baselines"]["flood_ttl"], cfg["baselines"]["flood_window_s"])
+        elif method in ("registry", "registry3"):
             from agentroute.baselines.registry import Registry
-            self.registry = Registry(self, cfg["baselines"])
+            replicas = 1 if method == "registry" else cfg["baselines"]["registry3_replicas"]
+            self.registry = Registry(self, cfg["baselines"], replicas)
         elif method == "chord":
             from agentroute.baselines.chord import Chord
             self.chord = Chord(self, cfg["baselines"]["chord_bits"])
+        elif method == "sdht":
+            from agentroute.baselines.chord import SemanticDHT
+            self.chord = SemanticDHT(self, cfg["baselines"])
         self.log.write_topology(self.snapshot())
 
     # ------------------------------------------------------------------
@@ -180,7 +209,7 @@ class Simulator:
         self.agent_card = 2 * cls + var
         assert (self.card_class[self.agent_card] == cls).all()
         self.agent_class = cls
-        self.agent_vec = self.card_vecs[self.agent_card]
+        self.agent_vec = agent_vectors(self.class_vecs, cls, self.rng_topo, ag["card_alpha"])
         bounds = area_bounds(self.G)
         self.agent_xy = np.zeros((n, 2))
         self.agent_xy[:n_edge] = self.rng_topo.uniform(bounds[:2], bounds[2:], size=(n_edge, 2))
@@ -263,7 +292,15 @@ class Simulator:
         yield self.env.timeout(topo["delay_ms"]["radio"] / 1000.0 + (attempts - 1) * self.radio_lut.harq_rtt_s)
         return "link" if dropped else None
 
-    def traverse(self, pkt, path, log_hops=True):
+    def count_query(self, msgs=1, size=None):
+        self.query_msgs += msgs
+        self.query_bytes += msgs * (self.query_size if size is None else size)
+
+    def count_ctrl(self, msgs, n_bytes):
+        self.ctrl_msgs += msgs
+        self.ctrl_bytes += n_bytes
+
+    def traverse(self, pkt, path, log_hops=True, size=None):
         """Send a packet along a router path (used by the baselines).
 
         Returns (drop reason or None, router where it stopped)."""
@@ -273,7 +310,7 @@ class Simulator:
             reason = yield from self.transit(u)
             if reason:
                 return reason, u
-            self.query_msgs += 1
+            self.count_query(1, size)
             pkt.hops += 1
             if log_hops:
                 self.log.log(t=self.env.now, type="hop", pkt=pkt.pid, method=self.method,
@@ -283,6 +320,12 @@ class Simulator:
                 return reason, v
         reason = yield from self.transit(path[-1])
         return reason, path[-1]
+
+    def hop_distance(self, a):
+        """Hop count from router a to every router of the live graph (cached)."""
+        if a not in self._dist:
+            self._dist[a] = nx.single_source_shortest_path_length(self.live, a)
+        return self._dist[a]
 
     def path(self, a, b):
         if a not in self._paths:
@@ -312,7 +355,7 @@ class Simulator:
             in_handover={n: 1.0 if now - self.routers[n].last_handover < self.ho_window else 0.0
                          for n in nbrs},
             kind=self.kind, upstream=self.upstream.get(u), tau=self.tau, radius=self.radius,
-            now=now)
+            now=now, accept_mode=self.accept_mode, omega=self.omega)
 
     # ------------------------------------------------------------------
     # results
@@ -320,7 +363,8 @@ class Simulator:
         now = self.env.now
         elapsed = now - pkt.created if time is None else time
         self.results.append({"pid": pkt.pid, "success": success, "reason": reason,
-                             "time": elapsed, "hops": pkt.hops, "cls": pkt.intent_class})
+                             "time": elapsed, "hops": pkt.hops, "cls": pkt.intent_class,
+                             "oracle_best": pkt.oracle_best, "oracle_any": pkt.oracle_any})
         if success:
             self.log.log(t=now, type="deliver", pkt=pkt.pid, agent=int(agent), hops=pkt.hops,
                          method=self.method)
@@ -352,18 +396,18 @@ class Simulator:
                 self.policy.observe(pkt, self.env.now, None, "drop")
                 return self.finish(pkt, False, reason, at=u)
             view = self.view(u, pkt)
-            agent = best_local_agent(view, pkt)
+            if pkt.ttl <= 0 and best_local_agent(view, pkt) is None:
+                self.policy.observe(pkt, self.env.now, None, "drop")
+                return self.finish(pkt, False, "ttl", at=u)
+            if pkt.pending is not None:
+                self.policy.observe(pkt, self.env.now, view, None)
+            agent = self.policy.accept(view, pkt)
             if agent is not None:
                 reason = yield from self.deliver_to(pkt, u, agent)
                 self.policy.observe(pkt, self.env.now, None, "drop" if reason else "deliver")
                 if reason:
                     return self.finish(pkt, False, reason, at=u)
                 return self.finish(pkt, True, None, agent=agent)
-            if pkt.ttl <= 0:
-                self.policy.observe(pkt, self.env.now, None, "drop")
-                return self.finish(pkt, False, "ttl", at=u)
-            if pkt.pending is not None:
-                self.policy.observe(pkt, self.env.now, view, None)
             nxt = self.policy.choose(view, pkt)
             if nxt is None:
                 self.policy.observe(pkt, self.env.now, None, "drop")
@@ -372,7 +416,7 @@ class Simulator:
             pkt.prev_hop = u
             pkt.visited.append(u)
             pkt.hops += 1
-            self.query_msgs += 1
+            self.count_query()
             self.log.log(t=self.env.now, type="hop", pkt=pkt.pid, method=self.method,
                          **{"from": int(u), "to": int(nxt)})
             reason = yield from self.link(u, nxt)
@@ -381,26 +425,30 @@ class Simulator:
                 return self.finish(pkt, False, reason, at=nxt)
             u = nxt
 
-    def propagate(self, v, card, delta):
+    def propagate(self, v, agent, delta):
         """Withdraw (delta=-1) or announce (+1) one agent at router v, hop by hop."""
         if v not in self.adv.alive:
             return
-        self.adv.agents_at[v][card] += delta
-        updates = self.adv.updates_for(v)
+        vec = self.agent_vec[agent]
+        if delta > 0:
+            self.adv.local[v][agent] = vec
+        else:
+            self.adv.local[v].pop(agent, None)
         kind = "adv" if delta > 0 else "withdraw"
+        frontier, seen = [v], {v}
         for d in range(1, self.radius + 1):
-            group = [x for x in updates if x[0] == d]
-            if not group:
-                break
             yield self.env.timeout(ADV_HOP_DELAY)
-            changed = self.adv.apply(group, card, delta)
-            self.ctrl_msgs += len(changed)
+            changed, frontier = self.adv.spread(v, frontier, seen, agent, vec, delta, d)
+            self.count_ctrl(len(changed), len(changed) * self.adv.delta_bytes())
             self.update_msgs += len(changed)
+            self.update_bytes += len(changed) * self.adv.delta_bytes()
             if self.log.enabled:
                 for n, u in changed:
                     nv = self.adv.tables[u].n_vectors(n) if kind == "adv" else 0
-                    self.log.log(t=self.env.now, type=kind, card=int(card), n_vectors=nv,
+                    self.log.log(t=self.env.now, type=kind, agent=int(agent), n_vectors=nv,
                                  **{"from": int(n), "to": int(u)})
+            if not changed and self.adv.summary != "exact":
+                break
 
     # ------------------------------------------------------------------
     # processes
@@ -421,6 +469,7 @@ class Simulator:
                          intent_class=int(self.intent_class[k]), ttl=self.ttl, ttl_max=self.ttl,
                          src_agent=a, created=self.env.now, method=self.method,
                          text=self.intent_text[k])
+            self._set_oracle(pkt, a)
             self.log.log(t=self.env.now, type="query", pkt=pid, agent=a, router=start,
                          cls=pkt.intent_class, text=pkt.text, method=self.method)
             pid += 1
@@ -428,10 +477,23 @@ class Simulator:
                 self.env.process(self.semantic_query(pkt, start))
             elif self.method == "flooding":
                 self.env.process(self.flood.query(pkt, start))
-            elif self.method == "registry":
+            elif self.method in ("registry", "registry3"):
                 self.env.process(self.registry.query(pkt, start))
             else:
                 self.env.process(self.chord.query(pkt, start))
+
+    def _set_oracle(self, pkt, src):
+        """What a method with perfect knowledge of all attached agents could achieve."""
+        on = self.attached >= 0
+        on[src] = False
+        if not on.any():
+            return
+        sims = self.agent_vec @ pkt.intent
+        sims[~on] = -2.0
+        best = int(np.argmax(sims))
+        right = self.agent_class == pkt.intent_class
+        pkt.oracle_best = bool(sims[best] >= self.tau and right[best])
+        pkt.oracle_any = bool(((sims >= self.tau) & right).any())
 
     def mobility(self):
         ag = self.cfg["agents"]
@@ -464,7 +526,6 @@ class Simulator:
                     self.env.process(self.handover(a, int(cur[k]), self.gnbs[target[k]]))
 
     def handover(self, a, old, new):
-        card = int(self.agent_card[a])
         now = self.env.now
         if old is not None:
             self._detach(a)
@@ -472,8 +533,8 @@ class Simulator:
             self.handovers += 1
             self.log.log(t=now, type="handover", agent=int(a), from_cell=int(old), to_cell=int(new))
             if self.semantic:
-                self.env.process(self.propagate(old, card, -1))
-            elif self.method == "chord":
+                self.env.process(self.propagate(old, a, -1))
+            elif self.method in ("chord", "sdht"):
                 self.chord.on_move(a)
         self.routers[new].last_handover = now
         yield self.env.timeout(self.cfg["agents"]["handover_interrupt_s"])
@@ -482,10 +543,10 @@ class Simulator:
             return              # the target died meanwhile; mobility will try again
         self._attach(a, new)
         if self.semantic:
-            self.env.process(self.propagate(new, card, +1))
-        elif self.method == "registry":
+            self.env.process(self.propagate(new, a, +1))
+        elif self.method in ("registry", "registry3"):
             self.env.process(self.registry.update(a))
-        elif self.method == "chord":
+        elif self.method in ("chord", "sdht"):
             self.chord.on_move(a)
 
     def hello(self):
@@ -513,8 +574,12 @@ class Simulator:
         first = True
         while True:
             if self.semantic:
-                msgs, _ = self.adv.periodic_messages()
-                self.ctrl_msgs += msgs + int((self.attached >= 0).sum())
+                if first or not self.incremental:
+                    msgs, n_bytes = self.adv.build()    # recompute every summary (soft state)
+                else:
+                    msgs, n_bytes = self.adv.refresh_incremental()
+                n_reg = int((self.attached >= 0).sum())
+                self.count_ctrl(msgs + n_reg, n_bytes + n_reg * SMALL_MSG)
                 if first and self.log.enabled:
                     for u in self.adv.alive:
                         t = self.adv.tables[u]
@@ -523,9 +588,9 @@ class Simulator:
                             if nv:
                                 self.log.log(t=0.0, type="adv", n_vectors=nv,
                                              **{"from": int(n), "to": int(u)})
-            elif self.method == "registry":
+            elif self.method in ("registry", "registry3"):
                 self.env.process(self.registry.refresh(period, initial=first))
-            elif self.method == "chord":
+            elif self.method in ("chord", "sdht"):
                 self.chord.refresh()
             first = False
             yield self.env.timeout(period)
@@ -550,13 +615,32 @@ class Simulator:
         self.live = self.G.subgraph([u for u in self.G.nodes if u not in self.known_dead]).copy()
         self._paths = {}
         self._compute_upstream()
+        self._dist = {}
         if self.semantic:
-            self.ctrl_msgs += self.adv.fail(failed)
-        elif self.method == "chord":
+            fail = self.adv.fail_incremental if self.incremental else self.adv.fail
+            self.count_ctrl(*fail(failed))
+        elif self.method in ("chord", "sdht"):
             self.chord.rebuild()
+
+    def control_window(self):
+        """Mark the control bytes of the steady part of the run.
+
+        The window opens after the first full period and closes at the end of
+        the traffic, so it holds whole refresh rounds and no start-up.
+        """
+        period = self.cfg["sfib"]["refresh_s"]
+        yield self.env.timeout(1e-3)
+        self.boot_bytes = self.ctrl_bytes
+        if self.duration <= period:
+            return
+        yield self.env.timeout(period)
+        self._steady_start = (self.ctrl_bytes, self.update_bytes)
+        yield self.env.timeout(self.duration - period)
+        self._steady_end = (self.ctrl_bytes, self.update_bytes)
 
     # ------------------------------------------------------------------
     def run(self):
+        self.env.process(self.control_window())
         self.env.process(self.query_source())
         self.env.process(self.mobility())
         self.env.process(self.hello())
@@ -588,9 +672,28 @@ class Simulator:
             "ctrl_msgs": self.ctrl_msgs,
             "query_msgs": self.query_msgs,
             "msgs_per_query": (self.ctrl_msgs + self.query_msgs) / max(n, 1),
+            "ctrl_msgs_per_s": self.ctrl_msgs / self.duration,
+            "ctrl_kB_per_s": self.ctrl_bytes / self.duration / 1000.0,
+            "boot_kB": self.boot_bytes / 1000.0,
+            "query_msgs_per_query": self.query_msgs / max(n, 1),
+            "query_kB_per_query": self.query_bytes / max(n, 1) / 1000.0,
+            "oracle_best": float(np.mean([r["oracle_best"] for r in res])) if n else 0.0,
+            "oracle_any": float(np.mean([r["oracle_any"] for r in res])) if n else 0.0,
+            "success_solvable": float(np.mean([r["success"] for r in res if r["oracle_best"]]))
+            if any(r["oracle_best"] for r in res) else float("nan"),
+            "precision": len(ok) / max(len(ok) + reasons.get("wrong_agent", 0), 1),
             "handovers": self.handovers,
             "update_msgs": self.update_msgs,
         }
+        if self._steady_end is not None:
+            span = self.duration - self.cfg["sfib"]["refresh_s"]
+            ctrl = self._steady_end[0] - self._steady_start[0]
+            update = self._steady_end[1] - self._steady_start[1]
+            out["ctrl_kB_per_s_steady"] = ctrl / span / 1000.0
+            out["update_kB_per_s_steady"] = update / span / 1000.0
+            out["refresh_kB_per_s_steady"] = (ctrl - update) / span / 1000.0
+        if self.method in ("registry", "registry3"):
+            out["servers_alive"] = sum(self.routers[u].alive for u in self.registry.nodes)
         for reason in ["ttl", "queue", "link", "node_down", "no_route", "wrong_agent", "handover",
                        "not_found", "stale_location", "registry_queue"]:
             out[f"drop_{reason}"] = reasons.get(reason, 0) / n if n else 0.0

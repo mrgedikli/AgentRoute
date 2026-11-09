@@ -32,12 +32,14 @@ def main():
     quick = ["--quick"] if args.quick else []
     workers = ["--workers", args.workers]
 
+    step("compare encoders", ["experiments/compare_encoders.py"])
     step("tune tau", ["experiments/tune_tau.py"])
     models = [ROOT / "results" / "models" / "dqn.pt", ROOT / "results" / "models" / "gnn.pt"]
     if not args.skip_train and not all(m.exists() for m in models):
         step("train DQN + GNN", ["experiments/run_train.py"] + (["--episodes", "20"] if args.quick else []))
-    for name in ["scale", "mobility", "failure", "radius", "load", "ablation", "handover_cost"]:
-        step(name, [f"experiments/run_{name}.py"] + quick + workers)
+    for name in ["scale", "mobility", "failure", "radius", "load", "rate", "tau", "ablation",
+                 "matched", "handover_cost"]:
+        step(name, [f"experiments/run_{name}.py"] + quick + (workers if name != "handover_cost" else []))
     step("figures", ["viz/plots.py"])
     step("demo runs", ["experiments/run_demo.py"])
     step("animations", ["viz/animate.py"])

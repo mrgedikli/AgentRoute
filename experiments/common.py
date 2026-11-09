@@ -19,8 +19,10 @@ import pandas as pd  # noqa: E402
 
 from agentroute.config import RESULTS, deep_update, load_config, set_by_path  # noqa: E402
 
-ALL_METHODS = ["agentroute", "agentroute_gnn", "greedy", "flooding", "registry", "chord"]
-SEMANTIC_METHODS = ["agentroute", "agentroute_gnn", "greedy"]
+ALL_METHODS = ["agentroute", "agentroute_gnn", "greedy", "greedy_load", "spfr",
+               "flooding", "registry", "registry3", "chord", "sdht"]
+SEMANTIC_METHODS = ["agentroute", "agentroute_gnn", "greedy", "greedy_load", "spfr"]
+SEEDS = list(range(1, 11))
 
 
 def parse_args(description):
@@ -81,7 +83,7 @@ def sweep(name, values, apply, methods, seeds, quick=False, workers=6, config=No
 
 
 def seeds_for(quick):
-    return [1] if quick else [1, 2, 3, 4, 5]
+    return [1] if quick else SEEDS
 
 
 def describe(df, label="value", cols=("success_rate", "time_ms", "hops", "msgs_per_query")):

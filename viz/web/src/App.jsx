@@ -11,9 +11,13 @@ const METHOD_COLOR = {
   agentroute: "#2a78d6",
   agentroute_gnn: "#eb6834",
   greedy: "#1baf7a",
+  greedy_load: "#0f8a8a",
+  spfr: "#6250d6",
   flooding: "#eda100",
   registry: "#e87ba4",
+  registry3: "#a8437a",
   chord: "#008300",
+  sdht: "#7a6a5a",
 };
 
 export default function App() {

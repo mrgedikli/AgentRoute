@@ -17,7 +17,7 @@ import numpy as np  # noqa: E402
 import pandas as pd  # noqa: E402
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from plots import FIG, INK2, METHODS, RAW, ROOT, save  # noqa: E402
+from plots import FIG, INK2, METHODS, RAW, ROOT, ROUTED, save  # noqa: E402
 
 TABLES = ROOT / "results" / "radio_tables.md"
 RADIO = {"constant": ("Fixed radio", "#898781"), "sionna": ("Sionna radio", "#2a78d6"),
@@ -51,11 +51,11 @@ def fig_compare(df):
     fig, ax = plt.subplots(figsize=(8.4, 3.6))
     w = 0.26
     for i, r in enumerate(RADIO):
-        mean = [g.mean().get((r, m), np.nan) * 100 for m in ORDER]
-        err = [ci(g.get_group((r, m))) * 100 for m in ORDER]
-        ax.bar(np.arange(len(ORDER)) + (i - 1) * w, mean, w, yerr=err, color=RADIO[r][1], label=RADIO[r][0],
+        mean = [g.mean().get((r, m), np.nan) * 100 for m in ROUTED]
+        err = [ci(g.get_group((r, m))) * 100 for m in ROUTED]
+        ax.bar(np.arange(len(ROUTED)) + (i - 1) * w, mean, w, yerr=err, color=RADIO[r][1], label=RADIO[r][0],
                error_kw={"lw": 0.8, "capsize": 2})
-    ax.set_xticks(range(len(ORDER)), [METHODS[m][0].replace(" (", "\n(").replace(" ", "\n", 1) if m in ("greedy", "registry") else METHODS[m][0].replace(" (", "\n(") for m in ORDER])
+    ax.set_xticks(range(len(ROUTED)), [METHODS[m][0].replace(" (", "\n(").replace(" ", "\n", 1) if m in ("greedy", "greedy_load", "registry", "sdht") else METHODS[m][0].replace(" (", "\n(") for m in ROUTED])
     ax.set_ylabel("Discovery success (%)")
     ax.set_title("Success with a fixed and a Sionna-based radio (1,000 agents)")
     ax.legend(ncol=3, loc="upper center", bbox_to_anchor=(0.5, -0.12))
@@ -64,7 +64,7 @@ def fig_compare(df):
 
 def fig_mobility(df, ref):
     fig, ax = plt.subplots(figsize=(6.2, 3.6))
-    for m in ORDER:
+    for m in ROUTED:
         label, color, marker = METHODS[m]
         for data, ls, tag in ((df, "-", "Sionna radio"), (ref, "--", "fixed radio")):
             d = data[data.method == m].groupby("speed")["success_rate"]
@@ -87,7 +87,7 @@ def md(table):
 
 
 def tables(comp, mob):
-    out = ["### radio_compare (mean of 5 seeds, 1,000 agents)\n"]
+    out = [f"### radio_compare (mean of {comp['seed'].nunique()} seeds, 1,000 agents)\n"]
     for col, name in (("success_rate", "success %"), ("time_ms", "time ms"), ("hops", "hops"),
                       ("msgs_per_query", "messages / request")):
         t = comp.groupby(["method", "radio"])[col].mean().unstack("radio")[list(RADIO)]
