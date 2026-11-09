@@ -28,6 +28,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def build(cfg: dict) -> dict:
     torch.manual_seed(cfg["seed"])
+    sionna.phy.config.seed = cfg["seed"]  # Sionna draws from its own random generator
     fc = cfg["carrier_frequency_hz"]
     n_sc = cfg["num_subcarriers"]
     n_ut = cfg["drops_per_distance"]
@@ -46,18 +47,20 @@ def build(cfg: dict) -> dict:
     max_tx = cfg["max_tx"]
     bler, snr_db, pmf = [], [], []
     for d in cfg["distance_grid_m"]:
-        # n_ut independent UEs at ground distance d inside the serving 120-degree sector of a
-        # three-sector gNB (the 38.901 antenna pattern points its boresight along +x).
-        ang = (torch.rand(1, n_ut) - 0.5) * (2 * np.pi / 3)
+        # n_ut independent drops (batch entries), one UE each, at ground distance d inside the
+        # serving 120-degree sector of a three-sector gNB (the 38.901 antenna pattern points its
+        # boresight along +x). Separate batch entries keep shadow fading statistically independent;
+        # UEs in one batch entry would share spatially correlated shadowing.
+        ang = (torch.rand(n_ut, 1) - 0.5) * (2 * np.pi / 3)
         ut_loc = torch.stack([d * torch.cos(ang), d * torch.sin(ang),
-                              torch.full((1, n_ut), cfg["ut_height_m"])], dim=-1)
-        bs_loc = torch.tensor([[[0.0, 0.0, cfg["bs_height_m"]]]])
-        zeros = torch.zeros(1, n_ut, 3)
-        channel.set_topology(ut_loc, bs_loc, zeros, torch.zeros(1, 1, 3), zeros,
-                             torch.zeros(1, n_ut, dtype=torch.bool), los="random")
+                              torch.full((n_ut, 1), cfg["ut_height_m"])], dim=-1)
+        bs_loc = torch.tensor([0.0, 0.0, cfg["bs_height_m"]]).repeat(n_ut, 1, 1)
+        zeros = torch.zeros(n_ut, 1, 3)
+        channel.set_topology(ut_loc, bs_loc, zeros, torch.zeros(n_ut, 1, 3), zeros,
+                             torch.zeros(n_ut, 1, dtype=torch.bool), los="random")
         a, tau = channel(1, 1e6)
-        h = cir_to_ofdm_channel(freqs, a, tau)  # [1, ut, ut_ant, bs, bs_ant, 1, n_sc]
-        gain = (h.abs() ** 2).sum(dim=(2, 4)).mean(dim=3)[0, :, 0, :]  # [ut, n_sc], power summed over 2 ports
+        h = cir_to_ofdm_channel(freqs, a, tau)  # [drop, 1, ut_ant, 1, bs_ant, 1, n_sc]
+        gain = (h.abs() ** 2).sum(dim=(2, 4)).mean(dim=3)[:, 0, 0, :]  # [drop, n_sc], power summed over the 2 gNB ports
         sinr = tx_re_mw * gain * 10 ** (cfg["extra_gain_db"] / 10) / noise_mw  # uplink, maximum-ratio combining over the gNB ports
         sinr_ut = sinr.T.reshape(1, n_sc, n_ut, 1)  # [sym, sc, ut, stream]
         mcs = torch.full((n_ut,), cfg["mcs_index"], dtype=torch.int32)
@@ -85,8 +88,11 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--config", default=str(ROOT / "configs" / "radio.yaml"))
     ap.add_argument("--out", default=str(ROOT / "results" / "radio_lut.npz"))
+    ap.add_argument("--extra-gain-db", type=float, default=None, help="override extra_gain_db (sensitivity runs)")
     args = ap.parse_args()
     cfg = yaml.safe_load(open(args.config))
+    if args.extra_gain_db is not None:
+        cfg["extra_gain_db"] = args.extra_gain_db
     res = build(cfg)
     meta = {"config": cfg, "sionna": __import__("importlib.metadata").metadata.version("sionna-no-rt"),
             "torch": torch.__version__}
