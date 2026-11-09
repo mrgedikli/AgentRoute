@@ -591,7 +591,7 @@ videoSlide("agentroute_demo", "Demo: a request routed by meaning",
   });
   s.addText("Future work: on-device fine-tuning · signed capability advertisements · UDP overlay prototype · better encoders", {
     x: 0.8, y: 6.2, w: 11.7, h: 0.5, isTextBox: true, margin: 0, fontSize: 14, color: LIGHT });
-  s.addNotes("Close with the one sentence: packets are addressed to what an agent can do, and routers learn where to send them. Then future work: fine-tune the shared model on each router, signed advertisements against agents that lie about their capabilities, an overlay implementation over UDP like early IPv6 tunnels, and better sentence encoders - matching quality is the main limit today. Thank you, questions.");
+  s.addNotes("Close with the one sentence: packets are addressed to what an agent can do, and routers learn where to send them. Then future work: fine-tune the shared model on each router, signed advertisements against agents that lie about their capabilities, an overlay implementation over UDP like early IPv6 tunnels, and better sentence encoders - matching quality is the main limit today. One more sentence if there is time: we also replaced the fixed radio hop by a distance-dependent link model computed with NVIDIA Sionna (3GPP TR 38.901 channel, 5G NR block error rates, HARQ); success falls for every method and the central registry falls the most - details in the final report. Thank you, questions.");
 }
 
 // 18 ---- backup: ablations

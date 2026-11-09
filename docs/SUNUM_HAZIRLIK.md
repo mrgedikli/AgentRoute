@@ -105,6 +105,9 @@ Flooding bütün adaylara soruyor ve en iyisini seçiyor, bu yüzden %61.5. Ama 
 **DQN yük altında neden greedy'nin gerisinde?**
 Kayıp TTL'den değil kuyruk taşmasından geliyor: 4× yükte DQN isteklerin %17.6'sını dolu kuyruklara kaybediyor, greedy %12.2'sini. TTL kaybı ise DQN'de biraz daha düşük (%22.2'ye karşılık %23.9). Nedenini henüz analiz etmedik; iki olası etken var ama ikisini de test etmedik: yük 4 eğitim bölümlerinin yaklaşık beşte birinde var ve kuyruk bilgisi 100 ms'lik hello mesajlarıyla geliyor, bu yüzden birkaç paket aynı boş görünen router'ı seçebilir. Eğitimde yüklü senaryolara daha çok ağırlık vermek ya da daha taze kuyruk bilgisi çözüm adayları. Bunu açık sorun olarak raporda yazdık. "TTL yüzünden" deme.
 
+**Sionna'yı nasıl kullandınız? Simülatör Sionna mı?**
+Hayır, simülatör SimPy ile yazılı kaldı. Sionna yalnızca radyo hop'unu hesaplıyor: 3GPP TR 38.901 kanalı, 5G NR blok hata oranı ve HARQ ile "UE–gNB mesafesi → kayıp olasılığı ve tekrar gönderim gecikmesi" tablosu üretiyor (`results/radio_lut.npz`). Simülatör bu tabloyu okuyor (`radio.model: sionna`). Varsayılan ayar sabit radyo olduğu için diğer tüm sonuçlar değişmedi. Bölüm 5.10'da bulgu: radyo gerçekçi olunca başarı her yöntemde düşüyor, registry radyoyu 4 kez geçtiği için en çok düşüyor (%55.6 → %38.5), DQN greedy'nin 3.1 puan gerisine iniyor. DQN'i yeni radyoyla yeniden eğitmedik ve neden daha çok kaybettiğini analiz etmedik. Girişim, link adaptation ve Doppler yok, "hız modellendi" deme.
+
 **Sahte yetenek duyuran kötü niyetli agent?**
 Kapsam dışı, limitation. Gelecek iş: imzalı duyurular ya da itibar puanı.
 
