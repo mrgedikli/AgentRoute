@@ -74,7 +74,7 @@ def fig_mobility(df, ref):
     ax.set_xlabel("Mobile agent speed (m/s)")
     ax.set_ylabel("Discovery success (%)")
     ax.set_title("Mobility: Sionna radio (solid) vs fixed radio (dashed)")
-    ax.legend(ncol=2)
+    ax.legend(ncol=3, loc="upper center", bbox_to_anchor=(0.5, -0.2))
     save(fig, "radio_mobility")
 
 
