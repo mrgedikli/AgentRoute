@@ -8,7 +8,7 @@ Run in an environment with Sionna (requirements-radio.txt). The simulator
 itself only reads the .npz and does not need Sionna.
 
 Written with AI assistance (Claude).
-Responsible: to be assigned
+Responsible: Bekir Emre Sarıpınar
 """
 
 import argparse

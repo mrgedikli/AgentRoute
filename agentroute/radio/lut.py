@@ -5,7 +5,7 @@ is delivered at HARQ attempt 1..max_tx, and the probability that it is dropped
 after max_tx attempts. This module needs only numpy, not Sionna.
 
 Written with AI assistance (Claude).
-Responsible: to be assigned
+Responsible: Bekir Emre Sarıpınar
 """
 import json
 

@@ -525,7 +525,7 @@ AgentRoute addresses packets to capabilities and lets routers learn the next hop
 
 ## 8. Team Contributions
 
-The work followed the work packages of the proposal. Module headers in the code name the responsible member (for the Sionna radio module the responsible member is still to be assigned). `docs/KIM_NE_YAPTI.md` gives the full file-by-file list.
+The work followed the work packages of the proposal. Module headers in the code name the responsible member (Bekir Emre Sarıpınar is responsible for the Sionna radio module). `docs/KIM_NE_YAPTI.md` gives the full file-by-file list.
 
 | Member | Responsibility | Main files |
 |---|---|---|

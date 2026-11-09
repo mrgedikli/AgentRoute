@@ -45,9 +45,9 @@ Bu belge, proposal'daki iş paketi bölüşümüne göre projenin hangi kısmın
 | `agentroute/dqn/train.py` | Double DQN eğitimi, target network, rastgele eğitim senaryoları, doğrulama ve en iyi modelin seçimi |
 | `experiments/run_train.py` | Eğitimi başlatan script → `results/models/*.pt`, `results/raw/train_*.csv` |
 
-## Sionna radyo katmanı (sorumlu: atanacak)
+## Sionna radyo katmanı (sorumlu: Bekir Emre Sarıpınar)
 
-Bu parça yapay zeka desteğiyle yazıldı. Sorumlu kişi henüz belirlenmedi, `Responsible: to be assigned` satırları dosyalarda duruyor. Hocanın sorusuna baştan sona cevap verebilecek biri bu modülü sahiplenmeli.
+Bu parça yapay zeka desteğiyle yazıldı. Sorumlu Bekir Emre Sarıpınar: modülün tamamını (tablo üretimi, simülatöre bağlanışı, varsayımlar, sonuçlar) anlatabilmeli. Modül başlıklarında `Responsible: Bekir Emre Sarıpınar` yazıyor.
 
 | Dosya | Ne yapıyor |
 |---|---|
