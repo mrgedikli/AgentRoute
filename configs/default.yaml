@@ -88,3 +88,7 @@ dqn:
     delay_scale_s: 0.1
     deliver_bonus: 1.0
     drop_penalty: 1.0
+
+radio:
+  model: constant           # constant: fixed delay and loss (topology.*.radio) | sionna: distance-dependent table
+  lut_path: results/radio_lut.npz   # built by experiments/build_radio_lut.py
