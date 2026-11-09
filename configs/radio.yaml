@@ -1,0 +1,21 @@
+# Radio link model used to build results/radio_lut.npz (experiments/build_radio_lut.py).
+# The simulator only reads the resulting table, not this file.
+# Written with AI assistance (Claude); values are a priori choices, not tuned to results.
+carrier_frequency_hz: 3500000000.0
+scenario: umi                 # TR 38.901 urban microcell (street canyon), LoS probability sampled per drop
+bandwidth_hz: 20000000.0
+subcarrier_spacing_hz: 30000.0
+num_subcarriers: 612          # 51 PRB x 12, the NR grid for 20 MHz at 30 kHz SCS
+tx_power_dbm: 23.0            # UE transmit power; the model is the uplink, the weaker of the two radio directions
+noise_figure_db: 5.0          # gNB receiver (3GPP UMi calibration value)
+extra_gain_db: 0.0            # extra array/beamforming gain on top of 2-port combining (sensitivity knob)
+bs_height_m: 10.0
+ut_height_m: 1.5
+mcs_index: 4                  # NR MCS table 1: QPSK, code rate about 0.59
+mcs_table_index: 1
+mcs_category: 0               # PDSCH
+max_tx: 4                     # HARQ transmissions before the packet is dropped
+harq_rtt_ms: 4.0              # one retransmission round trip (about 8 slots of 0.5 ms)
+distance_grid_m: [5, 25, 50, 75, 100, 125, 150, 175, 200, 225, 250, 275, 300, 325, 350, 400, 450, 500]
+drops_per_distance: 2000      # independent LoS/shadowing/fading realisations per distance
+seed: 7

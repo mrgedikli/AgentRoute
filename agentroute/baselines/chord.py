@@ -115,7 +115,7 @@ class Chord:
     # ---- lookup -------------------------------------------------------
     def query(self, pkt, start):
         sim = self.sim
-        reason = yield from sim.radio()
+        reason = yield from sim.radio(pkt.src_agent)
         if reason:
             return sim.finish(pkt, False, reason, at=start)
         key = chash(normalize(pkt.text), self.bits)

@@ -102,9 +102,22 @@ Her script bir parametreyi tarar, her (değer, yöntem, seed) için bir simülas
 | `experiments/run_radius.py` | duyuru yarıçapı R = 1–6 | `radius.csv` |
 | `experiments/run_load.py` | yük çarpanı 0.5–4 | `load.csv` |
 | `experiments/run_ablation.py` | S-FIB özeti (mean / k / exact) ve intent header (float32 / int8 / binary) | `ablation_summary.csv`, `ablation_header.csv` |
+| `experiments/run_radio.py compare` | sabit radyo, Sionna radyosu ve +10 dB link bütçesi (1.000 agent) | `radio_compare.csv` |
+| `experiments/run_radio.py mobility` | mobil agent hızı 0–30 m/s, Sionna radyosuyla | `radio_mobility.csv` |
 | `experiments/run_handover_cost.py` | handover başına S-FIB mesajı vs tam duyuru turu (1.000 / 3.000 / 10.000 agent) | `handover_cost.json` |
 
 Yöntem adları: `agentroute` (DQN), `agentroute_gnn`, `greedy`, `flooding`, `registry`, `chord`.
+
+### 4.3.1 Sionna radyo tablosu
+
+Simülasyon `results/radio_lut.npz` dosyasını okur, Sionna gerekmez. Tabloyu yeniden üretmek için ayrı bir sanal ortamda `pip install -r requirements-radio.txt` kur ve çalıştır:
+
+```bash
+python experiments/build_radio_lut.py
+python experiments/build_radio_lut.py --extra-gain-db 10 --out results/radio_lut_plus10db.npz
+```
+
+Varsayımlar (frekans, Tx gücü, MCS, HARQ) `configs/radio.yaml` içinde. Tohum sabit, aynı komut aynı tabloyu üretir (CPU'da yaklaşık 1,5 dakika). Radyo grafikleri için `python viz/plot_radio.py` (yalnızca yeni `radio_*` dosyalarını yazar).
 
 ### 4.4 Grafikler
 
@@ -218,6 +231,8 @@ Oynatıcıda:
 | `sim.duration_s` / `query_rate` / `load` | 30 / 10 / 1 | süre, istek/s, yük çarpanı |
 | `sim.failure_fraction` | 0 | çöken router oranı |
 | `baselines.flood_ttl` | 6 | flooding TTL |
+| `radio.model` | constant | `constant`: sabit radyo, `sionna`: mesafeye bağlı tablo |
+| `radio.lut_path` | results/radio_lut.npz | `sionna` modunda okunan tablo |
 | `dqn.*` | | eğitim hiperparametreleri ve reward ölçekleri |
 
 Kendi senaryon için sadece değiştirdiğin anahtarları içeren bir YAML yazıp `--config` ile verebilirsin (bkz. `configs/demo.yaml`).
