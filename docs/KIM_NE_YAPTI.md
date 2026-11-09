@@ -45,6 +45,20 @@ Bu belge, proposal'daki iş paketi bölüşümüne göre projenin hangi kısmın
 | `agentroute/dqn/train.py` | Double DQN eğitimi, target network, rastgele eğitim senaryoları, doğrulama ve en iyi modelin seçimi |
 | `experiments/run_train.py` | Eğitimi başlatan script → `results/models/*.pt`, `results/raw/train_*.csv` |
 
+## Sionna radyo katmanı (sorumlu: atanacak)
+
+Bu parça yapay zeka desteğiyle yazıldı. Sorumlu kişi henüz belirlenmedi, `Responsible: to be assigned` satırları dosyalarda duruyor. Hocanın sorusuna baştan sona cevap verebilecek biri bu modülü sahiplenmeli.
+
+| Dosya | Ne yapıyor |
+|---|---|
+| `configs/radio.yaml` | Radyo varsayımları (frekans, güç, MCS, HARQ) tek yerde |
+| `experiments/build_radio_lut.py` | Sionna ile TR 38.901 kanalı, EESM ve NR LDPC BLER eğrisinden mesafeye bağlı tablo üretir |
+| `results/radio_lut.npz`, `results/radio_lut_plus10db.npz` | Üretilen tablolar (Sionna kurmadan simülasyon çalışsın diye repoda) |
+| `agentroute/radio/lut.py` | Tabloyu okuyan küçük sınıf (`RadioLUT`, yalnızca numpy) |
+| `agentroute/sim/simulator.py` | `radio(agent)`: `radio.model: constant\|sionna` ayarına göre sabit ya da mesafeye bağlı kayıp ve HARQ gecikmesi |
+| `experiments/run_radio.py`, `viz/plot_radio.py` | Radyo deneyleri ve grafikleri |
+| `tests/test_radio.py` | Tablo, determinizm ve `constant` modunun eski sonuçlarla birebir aynı olduğu testi |
+
 ## Hep birlikte
 
 | Dosya / iş | Ne |

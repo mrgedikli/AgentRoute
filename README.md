@@ -32,6 +32,18 @@ python experiments/run_all.py --quick
 streamlit run viz/app_streamlit.py
 ```
 
+## Sionna radyo modeli
+
+Radyo bağlantısı iki modda çalışır (`configs/default.yaml` içinde `radio.model`): `constant` (sabit 5 ms ve %0,2 kayıp, varsayılan, eski sonuçlarla birebir aynı) ve `sionna` (UE-gNB mesafesine bağlı kayıp ve HARQ gecikmesi). Tablolar repoda (`results/radio_lut*.npz`), simülasyon için Sionna gerekmez. Tabloyu yeniden üretmek için ayrı bir ortamda:
+
+```bash
+pip install -r requirements-radio.txt && python experiments/build_radio_lut.py
+```
+
+```bash
+python experiments/run_radio.py compare && python experiments/run_radio.py mobility && python viz/plot_radio.py
+```
+
 ## Belgeler
 
 | Belge | İçerik |
