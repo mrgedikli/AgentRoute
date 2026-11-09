@@ -164,7 +164,7 @@ Everything is written in Python and runs on a laptop CPU (Apple M2):
 - Modules follow the work packages (Section 8).
 - The forwarding logic is independent of SimPy.
 - All randomness is seeded from YAML configs.
-- The complete source is in the code appendix (`AgentRoute_Code_Appendix.pdf`).
+- The complete source is in the code appendix, which follows this report in the single file `AgentRoute_Final_Report_Complete.pdf` (also available as `AgentRoute_Code_Appendix.pdf`).
 
 ### 4.1 Simulator
 
@@ -585,7 +585,7 @@ These files say so in their header. All reported numbers come from runs of the c
 uv venv --python 3.12 .venv && uv pip install --python .venv/bin/python -r requirements.txt
 .venv/bin/python -m pytest -q                       # tests
 .venv/bin/python experiments/run_all.py             # tau, training, all experiments, figures, demo, videos
-.venv/bin/python docs/build_pdfs.py                 # this report and the code appendix as PDF
+.venv/bin/python docs/build_pdfs.py                 # this report, the code appendix, and both in one PDF
 
 # Radio experiments (Section 5.10). The tables are in the repository; Sionna is only needed to rebuild them.
 .venv/bin/python experiments/run_radio.py compare   # fixed radio vs Sionna radio

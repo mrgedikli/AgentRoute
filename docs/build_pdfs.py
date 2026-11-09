@@ -140,6 +140,18 @@ def build_code_appendix(chrome):
     print("wrote", OUT / "AgentRoute_Code_Appendix.pdf")
 
 
+def merge_complete_report():
+    """One file with the report followed by the code appendix (the guidelines ask for a single report)."""
+    pdfunite = shutil.which("pdfunite")
+    if not pdfunite:
+        print("skip merge (pdfunite not found)")
+        return
+    out = OUT / "AgentRoute_Final_Report_Complete.pdf"
+    subprocess.run([pdfunite, str(OUT / "AgentRoute_Final_Report.pdf"),
+                    str(OUT / "AgentRoute_Code_Appendix.pdf"), str(out)], check=True)
+    print("wrote", out)
+
+
 def main():
     chrome = find_chrome()
     BUILD.mkdir(parents=True, exist_ok=True)
@@ -149,6 +161,7 @@ def main():
         else:
             print("skip (missing)", src)
     build_code_appendix(chrome)
+    merge_complete_report()
     shutil.rmtree(BUILD)
 
 
