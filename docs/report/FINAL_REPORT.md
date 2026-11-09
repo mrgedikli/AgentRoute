@@ -23,7 +23,7 @@ We implemented the full system and four baselines in a SimPy simulator of a cell
 - **Speed and cost:** AgentRoute is the fastest method, with 21 ms mean completion time at 10,000 agents against 52 ms for flooding and 202 ms for a central registry. It uses about a quarter of the messages of flooding.
 - **Success:** flooding and the registry, which compare all candidate agents, reach higher discovery success (62% and 56% vs 53%).
 - **Exact match:** Chord finds none of the paraphrased requests.
-- **Learning:** the learned policy matches greedy semantic forwarding in success (within about one point) and is 7–14% faster, but it loses about 4 points to greedy at the highest network load.
+- **Learning:** the learned policy matches greedy semantic forwarding in success (within about one point) and, from 300 agents on, 7–14% faster, but it loses about 4 points to greedy at the highest network load.
 
 Matching quality of the sentence encoder, not routing, is the main limit on success.
 
@@ -302,7 +302,9 @@ Unless stated otherwise:
 **Cost.**
 - Flooding pays for its higher success with 1,230 messages per request at 10,000 agents, four times AgentRoute's 315. Most of AgentRoute's messages are periodic soft-state refreshes, which do not grow with the request rate.
 - The registry stays cheap in messages (567) but becomes slow: registrations alone keep its server busy, and its completion time grows from 43 ms to 202 ms.
-- The learned policies (DQN and GNN) are the fastest methods at every scale (19.6–24.1 ms). From 300 agents on, the DQN is 7–14% faster than greedy because it avoids busy routers (Section 5.8).
+- The DQN is the fastest method at every scale (19.6–23.9 ms). The GNN is faster than greedy, flooding and the registry from 300 agents on (21.0–24.1 ms); at 100 agents it takes 21.3 ms, against 20.1 ms for greedy and flooding.
+- At 100 agents the DQN is only 2% faster than greedy. From 300 agents on it is 7–14% faster, because it avoids busy routers (Section 5.8).
+- The success differences between the DQN and greedy are within seed noise: paired by seed, they range from −0.9 to +0.9 points across the five scales, with a standard deviation of about 1–2 points.
 
 **Chord.** Chord never finds a paraphrased request. This is the reference point that shows why semantic matching is needed, not a competitor.
 
@@ -339,9 +341,9 @@ Unless stated otherwise:
 
 ![Radius](../../results/figures/radius.png)
 
-*Figure 9. Success and control messages as a function of the advertisement radius R (1,000 agents, 49 cells).*
+*Figure 9. Success and control messages as a function of the advertisement radius R (1,000 agents, 64 cells, 74 routers).*
 
-**Control messages** grow from 6,190 per run at R = 1 to 10,015 at R = 3. They saturate at about 10,700 from R = 5 on, when advertisements cover the whole 54-router network.
+**Control messages** grow from 6,190 per run at R = 1 to 10,015 at R = 3. They saturate at about 10,700 from R = 5 on, when advertisements cover almost the whole 74-router network (its diameter is 6 hops).
 
 **Success.** R = 1 is too short for the learned policies: the DQN reaches 46.8%, and the GNN, which was trained with R = 2–4, only 39.2%. From R = 2 on, success is flat (48–51%). In this network size R = 2–3 gives almost all of the benefit for 60–80% of the maximum control traffic.
 
@@ -360,8 +362,9 @@ Unless stated otherwise:
 **Learned policies.**
 - Up to a load factor of 3 the DQN is as successful as greedy (47.3% vs 47.0% at load 3) and faster (27.9 vs 30.4 ms).
 - At the highest load (4×) the DQN falls behind greedy by 3.7 points (43.7% vs 47.4%; GNN 45.4%), and both need about 41 ms.
-- When almost every busy router overflows, the learned detours become long, and more packets run out of TTL.
-- Weighting loaded scenarios more heavily in training, or adding a TTL-aware penalty to the reward, are the obvious fixes.
+- The loss comes from queue overflow, not from TTL expiry. At 4× the DQN loses 17.6% of its requests to full queues against 12.2% for greedy, while its TTL expiry is slightly lower (22.2% vs 23.9%).
+- We have not analysed why the DQN overflows more queues at this load. Two possible factors, both untested: load 4 appears in only about one in five training episodes, and queue occupancy reaches the policy only through hello messages every 100 ms, so several packets may pick the same router that looks idle.
+- Weighting loaded scenarios more heavily in training, or fresher queue information, are candidate fixes; we did not try them.
 
 We report this as the main open issue of the learned policy.
 
@@ -431,7 +434,7 @@ The DQN almost eliminates queue overflows. In exchange, more of its packets wand
 - **Better match:** a stronger or fine-tuned encoder, or agents that verify a task before accepting it, would raise success more than any routing change.
 - **Not the routing:** within the matching limit, the next-hop decision mainly determines delay and losses.
 
-**Why the DQN gains are modest.** In our scenarios most requests are served within two or three hops. The learned policy mainly avoids busy routers and lossy links. That gives consistent delay gains and a success rate within about a point of greedy, but not a large success gain. Under the heaviest load its detours even cost success (Section 5.7). On-device fine-tuning and richer state (e.g. per-capability load of the serving agents) are natural next steps.
+**Why the DQN gains are modest.** In our scenarios most requests are served within two or three hops. The learned policy mainly avoids busy routers and lossy links. That gives consistent delay gains and a success rate within about a point of greedy, but not a large success gain. Under the heaviest load it even loses success to greedy, through more queue overflows (Section 5.7). On-device fine-tuning and richer state (e.g. per-capability load of the serving agents) are natural next steps.
 
 **Limitations.**
 - The dataset is synthetic (50 classes, written by us).
@@ -445,7 +448,7 @@ AgentRoute addresses packets to capabilities and lets routers learn the next hop
 
 - **What the evaluation shows:** a semantic FIB with bounded-radius advertisements finds agents by meaning without a central server or flooding. It is the fastest of all methods, needs a quarter of flooding's messages and handles mobility with local updates.
 - **What it does not show:** its success is limited by sentence-embedding matching, and hop-by-hop delivery to the first acceptable agent costs a few points of success against methods that compare all agents.
-- **What learning adds:** the DQN learns a policy as successful as greedy forwarding and 7–14% faster. It removes almost all queue drops, but more of its packets run out of TTL, and it falls behind greedy under the heaviest load.
+- **What learning adds:** the DQN learns a policy as successful as greedy forwarding and, from 300 agents on, 7–14% faster. At the default load it removes almost all queue drops, but more of its packets run out of TTL. Under the heaviest load it falls behind greedy, because more of its packets meet full queues.
 
 **Future work.**
 - Better encoders and agent-side verification

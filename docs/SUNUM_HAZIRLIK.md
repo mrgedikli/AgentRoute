@@ -52,7 +52,7 @@ Toplam ~15 dakika, kişi başı ~5 dakika. Slaytlar İngilizce. Canlı demo yok,
     - Flooding en yüksek başarıyı alıyor (%61.5), ama istek başına 1.230 mesajla.
     - Registry 10.000 agent'ta 202 ms'ye çıkıyor ve kendi router'ı çökünce başarı %14–17'ye düşüyor.
     - AgentRoute en hızlısı (21 ms), mesajda flooding'in dörtte biri.
-    - DQN başarıda greedy ile aynı, %7–14 daha hızlı, ama en yüksek yükte greedy'nin 3.7 puan gerisinde.
+    - DQN başarıda greedy ile aynı, 300 agent'tan itibaren %7–14 daha hızlı (100 agent'ta yalnızca %2), ama en yüksek yükte greedy'nin 3.7 puan gerisinde. Başarı farkı seed gürültüsü içinde (−0.9 ile +0.9 puan): "DQN şu ölçekte geçiyor" deme.
   - Beklentiden farkı dürüstçe söyle: DQN başarıyı artırmadı, gecikmeyi azalttı. Başarıyı sınırlayan şey eşleşme kalitesi.
 - İki video: `agentroute_demo.mp4` (duyuru → istek → handover) ve `greedy_vs_agentroute.mp4` (aynı istek, iki yöntem).
 - Kapanış: tek cümle + gelecek iş.
@@ -94,7 +94,7 @@ SPFR kuralı elle tasarlıyor (heuristic), biz öğreniyoruz. Ayrıca mobil/hüc
 Chord bugünkü exact-match discovery'nin temsilcisi. Anlamsal eşleşmenin neden gerekli olduğunu gösteren bir referans noktası. Asıl rakibimiz greedy semantik forwarding.
 
 **Neden greedy yetmiyor?**
-Greedy sadece benzerliğe bakıyor, tıkanıklığı, link kalitesini ve handover'ı bilmiyor. DQN bunları da tartıyor. Ölçtüğümüz etki: kuyruk taşmaları %4.3'ten %0.4'e iniyor ve istekler %7–14 daha hızlı ulaşıyor. Başarı oranı ise aynı kalıyor.
+Greedy sadece benzerliğe bakıyor, tıkanıklığı, link kalitesini ve handover'ı bilmiyor. DQN bunları da tartıyor. Ölçtüğümüz etki: kuyruk taşmaları %4.3'ten %0.4'e iniyor ve istekler 300 agent'tan itibaren %7–14 daha hızlı ulaşıyor. Başarı oranı ise aynı kalıyor.
 
 **Flooding sizden daha başarılı, neden onu kullanmayalım?**
 Flooding bütün adaylara soruyor ve en iyisini seçiyor, bu yüzden %61.5. Ama 10.000 agent'ta istek başına 1.230 mesaj harcıyor (bizde 315) ve iki kat yavaş (52 ms, bizde 21 ms). Bizim yöntem yolda τ'yu geçen ilk agent'a teslim ediyor, o agent isteklerin %14–15'inde yanlış sınıftan oluyor. Bu hop hop teslimin bedeli. Agent tarafında doğrulama ile azaltılabilir.
@@ -103,7 +103,7 @@ Flooding bütün adaylara soruyor ve en iyisini seçiyor, bu yüzden %61.5. Ama 
 İsteklerin yaklaşık %28–30'u için ağda τ'yu geçen hiçbir agent yok: MiniLM bu parafrazları yeteneklere yeterince yakın bulmuyor. Global bilgiye sahip registry bile %56'da kalıyor. Yani sınır yönlendirme değil, eşleşme kalitesi. Daha iyi bir encoder ya da fine-tuning gelecek iş.
 
 **DQN yük altında neden greedy'nin gerisinde?**
-En yüksek yükte neredeyse her yoğun router taşıyor. DQN'in bunlardan kaçan yolları uzuyor ve daha çok paketin TTL'i bitiyor. Eğitimde yüklü senaryolara daha çok ağırlık vermek ya da reward'a TTL'e duyarlı bir ceza eklemek çözüm adayları. Bunu açık sorun olarak raporda yazdık.
+Kayıp TTL'den değil kuyruk taşmasından geliyor: 4× yükte DQN isteklerin %17.6'sını dolu kuyruklara kaybediyor, greedy %12.2'sini. TTL kaybı ise DQN'de biraz daha düşük (%22.2'ye karşılık %23.9). Nedenini henüz analiz etmedik; iki olası etken var ama ikisini de test etmedik: yük 4 eğitim bölümlerinin yaklaşık beşte birinde var ve kuyruk bilgisi 100 ms'lik hello mesajlarıyla geliyor, bu yüzden birkaç paket aynı boş görünen router'ı seçebilir. Eğitimde yüklü senaryolara daha çok ağırlık vermek ya da daha taze kuyruk bilgisi çözüm adayları. Bunu açık sorun olarak raporda yazdık. "TTL yüzünden" deme.
 
 **Sahte yetenek duyuran kötü niyetli agent?**
 Kapsam dışı, limitation. Gelecek iş: imzalı duyurular ya da itibar puanı.

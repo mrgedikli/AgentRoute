@@ -246,7 +246,7 @@ Ayrıntılar ve grafikler final raporun 5. bölümünde. Rakamların kaynağı `
 | Mesaj maliyeti? | 10.000 agent'ta istek başına AgentRoute 315, registry 567, flooding 1.230, Chord 4.976 mesaj |
 | Başarı oranı? | 10.000 agent'ta flooding %61.5, registry %55.7, AgentRoute %52.6, greedy %51.6, Chord %0 |
 | Neden flooding daha başarılı? | Flooding ve registry bütün adayları karşılaştırıp en iyisini seçiyor. Hop hop yöntem yolda τ'yu geçen ilk agent'a teslim ediyor ve bu agent isteklerin %14–15'inde yanlış sınıftan oluyor (flooding/registry'de %10–11). |
-| DQN greedy'den iyi mi? | Başarıda aynı (±1 puan), 300 agent'tan itibaren %7–14 daha hızlı. Kuyruk taşmalarını neredeyse sıfırlıyor (%4.3 → %0.4), ama daha çok paketin TTL'i bitiyor (%28 → %33). En yüksek yükte (4x) greedy'nin 3.7 puan gerisinde: bu açık sorun. |
+| DQN greedy'den iyi mi? | Başarıda aynı (±1 puan), 300 agent'tan itibaren %7–14 daha hızlı. Varsayılan yükte kuyruk taşmalarını neredeyse sıfırlıyor (%4.3 → %0.4), ama daha çok paketin TTL'i bitiyor (%28 → %33). En yüksek yükte (4x) greedy'nin 3.7 puan gerisinde: kayıp TTL'den değil kuyruk taşmasından geliyor (%17.6, greedy'de %12.2). Nedeni analiz edilmedi, bu açık sorun. |
 | Mobilite? | 30 m/s'de bile bütün yöntemler 1–2 puan kaybediyor. Bir handover 10.000 agent'ta 24 S-FIB mesajı tutuyor, bu tam bir duyuru turunun %0.8'i. |
 | Node failure? | %30 çöken router'da AgentRoute %49.7 → %47.4. Registry, kendi router'ının çöktüğü seed'lerde %14–17'ye düşüyor (tek hata noktası). |
 | R ne olmalı? | R = 2–3 başarının neredeyse hepsini veriyor, kontrol trafiği R ile artıp R = 5'te doyuyor. |

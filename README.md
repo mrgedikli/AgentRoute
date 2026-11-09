@@ -22,6 +22,8 @@ uv venv --python 3.12 .venv && uv pip install --python .venv/bin/python -r requi
 source .venv/bin/activate && python -m pytest -q
 ```
 
+> **İlk çalıştırma internet ister.** MiniLM modeli (`all-MiniLM-L6-v2`, yaklaşık 90 MB) ilk seferde HuggingFace'ten indirilir ve embedding'ler `results/cache/` altına kaydedilir (`.gitignore`'da). Test ve simülasyon, model indirilene kadar çalışmaz; bu yüzden 7 test internetsiz ortamda başarısız olur. Sonraki çalıştırmalar önbellekten okur.
+
 ```bash
 python experiments/run_all.py --quick
 ```
