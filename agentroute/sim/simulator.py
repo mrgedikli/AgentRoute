@@ -27,6 +27,7 @@ from agentroute.config import RESULTS, ROOT
 from agentroute.data.capabilities import class_names
 from agentroute.embeddings import agent_vectors, header_bytes, load_dataset_vectors, quantize
 from agentroute.forwarding import GreedyPolicy, LoadAwareGreedy, NodeView, Packet, SPFRPolicy, best_local_agent
+from agentroute.radio import RadioLUT
 from agentroute.sfib import MSG_OVERHEAD, Advertiser
 from agentroute.sim.events import EventLog
 from agentroute.sim.mobility import RandomWaypoint, handover_targets, nearest_cell
@@ -128,6 +129,9 @@ class Simulator:
         self.cores = [u for u in self.G.nodes if self.kind[u] == "core"]
         self.cloud = next(u for u in self.G.nodes if self.kind[u] == "cloud")
         self.cell_xy = np.array([[self.G.nodes[u]["x"], self.G.nodes[u]["y"]] for u in self.gnbs])
+        self.cell_of = {u: i for i, u in enumerate(self.gnbs)}
+        radio_cfg = cfg["radio"]
+        self.radio_lut = RadioLUT(ROOT / radio_cfg["lut_path"]) if radio_cfg["model"] == "sionna" else None
         self.routers = {u: Router(self.env, self.kind[u]) for u in self.G.nodes}
         n_hot = int(round(rt["hotspot_fraction"] * (len(self.gnbs) + len(self.cores))))
         self.hotspots = sorted(int(u) for u in self.rng_topo.choice(self.gnbs + self.cores, n_hot, replace=False))
@@ -269,12 +273,24 @@ class Simulator:
             return "node_down"
         return None
 
-    def radio(self):
+    def radio(self, agent=None):
+        """One radio hop between `agent` and its serving gNB.
+
+        constant: fixed delay and loss. sionna: the loss and the HARQ delay depend on the
+        UE-gNB distance (table built with Sionna); cloud agents have no radio hop."""
         topo = self.cfg["topology"]
-        yield self.env.timeout(topo["delay_ms"]["radio"] / 1000.0)
-        if self.rng_net.random() < topo["loss"]["radio"]:
-            return "link"
-        return None
+        if self.radio_lut is None or agent is None:
+            yield self.env.timeout(topo["delay_ms"]["radio"] / 1000.0)
+            if self.rng_net.random() < topo["loss"]["radio"]:
+                return "link"
+            return None
+        u = int(self.attached[agent])
+        if u not in self.cell_of:
+            return None
+        distance = float(np.hypot(*(self.agent_xy[agent] - self.cell_xy[self.cell_of[u]])))
+        attempts, dropped = self.radio_lut.sample(distance, self.rng_net.random())
+        yield self.env.timeout(topo["delay_ms"]["radio"] / 1000.0 + (attempts - 1) * self.radio_lut.harq_rtt_s)
+        return "link" if dropped else None
 
     def count_query(self, msgs=1, size=None):
         self.query_msgs += msgs
@@ -358,7 +374,7 @@ class Simulator:
 
     def deliver_to(self, pkt, u, agent):
         """Last radio hop from router u to the chosen agent. Returns a drop reason or None."""
-        reason = yield from self.radio()
+        reason = yield from self.radio(agent)
         if reason:
             return reason
         if self.attached[agent] != u:
@@ -370,7 +386,7 @@ class Simulator:
     # ------------------------------------------------------------------
     # semantic forwarding (AgentRoute and greedy)
     def semantic_query(self, pkt, start):
-        reason = yield from self.radio()
+        reason = yield from self.radio(pkt.src_agent)
         if reason:
             return self.finish(pkt, False, reason, at=start)
         u = start

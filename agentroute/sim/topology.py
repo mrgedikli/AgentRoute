@@ -8,8 +8,9 @@ Layout
     also to the second nearest (redundancy for the failure experiments),
   - one cloud node attached to two core routers.
 
-The number of cells grows with the number of agents (about 40 agents per
-cell), so the 10,000-agent scenario has 256 cells and 36 core routers.
+The number of cells grows with the number of agents (20 agents per cell, at
+most 400 cells), so the 10,000-agent scenario has 400 cells, 49 core routers
+and one cloud node (450 routers).
 
 Responsible: Ömer Faruk Gedikli
 """

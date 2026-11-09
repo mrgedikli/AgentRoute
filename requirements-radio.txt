@@ -1,0 +1,5 @@
+# Only needed to rebuild results/radio_lut.npz (experiments/build_radio_lut.py).
+# The simulator itself reads the table and does not need Sionna.
+sionna-no-rt==2.2.0
+pyyaml>=6.0
+numpy>=1.26

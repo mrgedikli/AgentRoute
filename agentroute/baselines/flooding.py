@@ -21,7 +21,7 @@ class Flooding:
 
     def query(self, pkt, start):
         sim = self.sim
-        reason = yield from sim.radio()
+        reason = yield from sim.radio(pkt.src_agent)
         if reason:
             return sim.finish(pkt, False, reason, at=start)
         state = {"seen": set(), "answers": [], "closed": False}
@@ -32,7 +32,7 @@ class Flooding:
             return sim.finish(pkt, False, "not_found", at=start)
         _, agent, u = max(state["answers"])
         pkt.hops = 0
-        reason = yield from sim.radio()     # the task goes from the UE back to its router
+        reason = yield from sim.radio(pkt.src_agent)    # the task goes from the UE back to its router
         if reason:
             return sim.finish(pkt, False, reason, at=start)
         reason, at = yield from sim.traverse(pkt, sim.path(start, u), log_hops=False, size=SMALL_MSG)
@@ -80,7 +80,7 @@ class Flooding:
     def answer(self, pkt, state, start, u, agent, similarity):
         """The answer travels back to the requester and is real traffic."""
         sim = self.sim
-        reason = yield from sim.radio()     # agent -> its router
+        reason = yield from sim.radio(agent)            # agent -> its router
         if reason:
             return
         back = sim.path(u, start)
@@ -91,7 +91,7 @@ class Flooding:
         pkt.hops = hops_before
         if reason:
             return
-        reason = yield from sim.radio()     # router -> requesting UE
+        reason = yield from sim.radio(pkt.src_agent)    # router -> requesting UE
         if reason or state["closed"]:
             return
         state["answers"].append((similarity, agent, u))

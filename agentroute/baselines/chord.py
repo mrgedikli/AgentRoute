@@ -129,7 +129,7 @@ class Chord:
     # ---- lookup -------------------------------------------------------
     def query(self, pkt, start):
         sim = self.sim
-        reason = yield from sim.radio()
+        reason = yield from sim.radio(pkt.src_agent)
         if reason:
             return sim.finish(pkt, False, reason, at=start)
         key = chash(normalize(pkt.text), self.bits)
@@ -203,7 +203,7 @@ class SemanticDHT(Chord):
 
     def query(self, pkt, start):
         sim = self.sim
-        reason = yield from sim.radio()
+        reason = yield from sim.radio(pkt.src_agent)
         if reason:
             return sim.finish(pkt, False, reason, at=start)
         order = np.argsort(-(self.catalogue @ pkt.intent))[:self.nprobe]

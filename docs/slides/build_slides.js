@@ -653,7 +653,7 @@ videoSlide("agentroute_demo", "Demo: a request routed by meaning",
   });
   s.addText("Future work: agent-side verification · learned capability representations · signed advertisements · UDP overlay prototype", {
     x: 0.8, y: 6.2, w: 11.7, h: 0.5, isTextBox: true, margin: 0, fontSize: 14, color: LIGHT });
-  s.addNotes(`Close with the honest summary. Routing by meaning works without a server and is fast. The compressed table is much cheaper than one row per agent and loses little. Learning: compared with a one-line load-balancing rule on the same requests, the DQN ${load} it: ${pairTxt(dqnVsLoad)}; against plain greedy ${pairTxt(dqnVsGreedy)}; against the SPFR-style rule ${pairTxt(dqnVsSpfr)}. The ceiling comes from the matching. Thank you, questions.`);
+  s.addNotes(`Close with the honest summary. Routing by meaning works without a server and is fast. The compressed table is much cheaper than one row per agent and loses little. Learning: compared with a one-line load-balancing rule on the same requests, the DQN ${load} it: ${pairTxt(dqnVsLoad)}; against plain greedy ${pairTxt(dqnVsGreedy)}; against the SPFR-style rule ${pairTxt(dqnVsSpfr)}. The ceiling comes from the matching. If there is time: we also replaced the fixed radio hop by a distance-dependent link model computed with NVIDIA Sionna (3GPP TR 38.901 channel, 5G NR block error rates, HARQ). Success falls by 8 to 21 points, the registries fall the most because they cross the radio four times, and the DQN keeps its lead over greedy. Details are in the final report. Thank you, questions.`);
 }
 
 // 19 ---- backup: ablations

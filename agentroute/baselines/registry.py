@@ -120,7 +120,7 @@ class Registry:
 
     def query(self, pkt, start):
         sim = self.sim
-        reason = yield from sim.radio()
+        reason = yield from sim.radio(pkt.src_agent)
         if reason:
             return sim.finish(pkt, False, reason, at=start)
         server, path = self.nearest(start)
@@ -142,7 +142,7 @@ class Registry:
         if agent is None:
             return sim.finish(pkt, False, "not_found", at=server)
         for _ in range(2):              # answer down to the UE, task back up
-            reason = yield from sim.radio()
+            reason = yield from sim.radio(pkt.src_agent)
             if reason:
                 return sim.finish(pkt, False, reason, at=start)
         target = int(self.loc[agent])

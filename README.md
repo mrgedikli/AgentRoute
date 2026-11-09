@@ -24,12 +24,26 @@ uv venv --python 3.12 .venv && uv pip install --python .venv/bin/python -r requi
 source .venv/bin/activate && python -m pytest -q
 ```
 
+> **İlk çalıştırma internet ister.** MiniLM modeli (`all-MiniLM-L6-v2`, yaklaşık 90 MB) ilk seferde HuggingFace'ten indirilir ve embedding'ler `results/cache/` altına kaydedilir (`.gitignore`'da). Test ve simülasyon, model indirilene kadar çalışmaz; bu yüzden 7 test internetsiz ortamda başarısız olur. Sonraki çalıştırmalar önbellekten okur.
+
 ```bash
 python experiments/run_all.py --quick
 ```
 
 ```bash
 streamlit run viz/app_streamlit.py
+```
+
+## Sionna radyo modeli
+
+Radyo bağlantısı iki modda çalışır (`configs/default.yaml` içinde `radio.model`): `constant` (sabit 5 ms ve %0,2 kayıp, varsayılan, eski sonuçlarla birebir aynı) ve `sionna` (UE-gNB mesafesine bağlı kayıp ve HARQ gecikmesi). Tablolar repoda (`results/radio_lut*.npz`), simülasyon için Sionna gerekmez. Tabloyu yeniden üretmek için ayrı bir ortamda:
+
+```bash
+pip install -r requirements-radio.txt && python experiments/build_radio_lut.py
+```
+
+```bash
+python experiments/run_radio.py compare && python experiments/run_radio.py mobility && python viz/plot_radio.py
 ```
 
 ## Belgeler

@@ -111,6 +111,9 @@ Sınırlılık olarak raporda var. Encoder karşılaştırmasında aynı nedenle
 **14. Bu kodu siz mi yazdınız?**
 v1'in çekirdeğini ekip yazdı. v2 revizyonunu, eleştirel bir değerlendirmeden sonra yapay zeka aracıyla yaptık ve raporun 9. bölümünde dosya dosya yazıyor. Ne yaptığını anlatabiliriz (bunun için gerçekten okuyun).
 
+**15. Sionna'yı nasıl kullandınız? Simülatör Sionna mı?**
+Hayır, simülatör SimPy ile yazılı kaldı. Sionna yalnızca radyo hop'unu hesaplıyor: 3GPP TR 38.901 kanalı, 5G NR blok hata oranı ve HARQ ile "UE–gNB mesafesi → kayıp olasılığı ve tekrar gönderim gecikmesi" tablosu üretiyor (`results/radio_lut.npz`). Simülatör bu tabloyu okuyor (`radio.model: sionna`). Varsayılan ayar sabit radyo olduğu için diğer tüm sonuçlar değişmedi. Bölüm 5.13'teki bulgu: radyo gerçekçi olunca başarı 8–21 puan düşüyor, en çok radyoyu 4 kez geçen registry'ler düşüyor (%63.0 → %44.2, 3 replika %64.0 → %43.2). DQN %62.9 → %52.3 oluyor ve greedy'ye karşı farkını koruyor (+2.4 puan, GA ±1.5). DQN'i yeni radyoyla yeniden eğitmedik. Girişim, link adaptation ve Doppler yok, "hız modellendi" deme.
+
 ---
 
 ## Teknik kısa cevaplar

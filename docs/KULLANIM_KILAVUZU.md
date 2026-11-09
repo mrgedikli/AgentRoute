@@ -111,9 +111,22 @@ Her script bir parametreyi tarar, her (değer, yöntem, seed) için bir simülas
 | `experiments/run_tau.py` | kabul eşiği τ | `tau.csv` |
 | `experiments/run_ablation.py` | S-FIB içeriği, intent header, kabul kuralı, handover eşiği, flooding penceresi | `ablation_*.csv` |
 | `experiments/run_matched.py` | aynı istekler üzerinde eşleştirilmiş karşılaştırma ve güven aralığı | `matched.json` |
+| `experiments/run_radio.py compare` | sabit radyo, Sionna radyosu ve +10 dB link bütçesi (1.000 agent) | `radio_compare.csv` |
+| `experiments/run_radio.py mobility` | mobil agent hızı 0–30 m/s, Sionna radyosuyla | `radio_mobility.csv` |
 | `experiments/run_handover_cost.py` | handover trafiği vs periyodik yenileme (1.000 / 3.000 / 10.000 agent) | `handover_cost.json` |
 
 Yöntem adları: `agentroute` (DQN), `agentroute_gnn`, `greedy`, `greedy_load` (yük duyarlı greedy), `spfr` (SPFR tarzı), `flooding`, `registry` (tek sunucu), `registry3` (üç replika), `sdht` (semantik DHT), `chord` (tam eşleşme).
+
+### 4.3.1 Sionna radyo tablosu
+
+Simülasyon `results/radio_lut.npz` dosyasını okur, Sionna gerekmez. Tabloyu yeniden üretmek için ayrı bir sanal ortamda `pip install -r requirements-radio.txt` kur ve çalıştır:
+
+```bash
+python experiments/build_radio_lut.py
+python experiments/build_radio_lut.py --extra-gain-db 10 --out results/radio_lut_plus10db.npz
+```
+
+Varsayımlar (frekans, Tx gücü, MCS, HARQ) `configs/radio.yaml` içinde. Tohum sabit, aynı komut aynı tabloyu üretir (CPU'da yaklaşık 1,5 dakika). Radyo grafikleri için `python viz/plot_radio.py` (yalnızca yeni `radio_*` dosyalarını yazar).
 
 ### 4.4 Grafikler
 
@@ -242,6 +255,8 @@ Oynatıcıda:
 | `baselines.registry3_replicas` | 3 | replikalı registry sunucu sayısı |
 | `baselines.sdht_buckets`, `sdht_nprobe` | 64, 2 | semantik DHT katalog boyutu ve sorgulanan girdi sayısı |
 | `baselines.spfr_radius` | 2 | SPFR'nin kontrol ufku |
+| `radio.model` | constant | `constant`: sabit radyo, `sionna`: mesafeye bağlı tablo |
+| `radio.lut_path` | results/radio_lut.npz | `sionna` modunda okunan tablo |
 | `dqn.*` | | eğitim hiperparametreleri ve reward ölçekleri |
 
 Kendi senaryon için sadece değiştirdiğin anahtarları içeren bir YAML yazıp `--config` ile verebilirsin (bkz. `configs/demo.yaml`).

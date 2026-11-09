@@ -25,6 +25,7 @@ Results at 1,000 agents:
 - **Learning helps, modestly.** The DQN delivers 62.9% of the requests (matching ceiling 69.3%). That is 2.5 points more than greedy forwarding on the same table (95% CI 1.4–3.7) and 3.5 points more than the load-aware heuristic. On requests that both methods deliver, the delay differs by about 0.5 ms.
 - **It does not beat everything.** An SPFR-style rule with an exact table delivers 1.2 points more (CI 0.2–2.2) with 3.6 times the control bytes. Flooding delivers 2.5 points more, but needs 234 ms and 174 kB per request. A central registry has the same success as the DQN and one eleventh of its control traffic, but takes 60 ms instead of 21 ms and is a single point of failure.
 - **The matching limits everything.** Six pre-trained encoders reach only 73–77% top-1 accuracy on unseen paraphrases, and the choice of the acceptance threshold moves success far more than any routing change.
+- **A realistic radio lowers every method.** With a distance-dependent radio computed with Sionna, success falls by 8 to 21 points. The registries, which cross the radio four times, fall the most, and the DQN keeps its lead over greedy (Section 5.13).
 
 ## 1. Introduction
 
@@ -177,7 +178,7 @@ Mobile agents attach to the nearest gNB, with 15% hysteresis against ping-pong. 
 
 Everything is written in Python and runs on a laptop CPU (Apple M2): SimPy and NetworkX for the simulator, PyTorch for the DQN, sentence-transformers for MiniLM, matplotlib for figures and animations.
 
-**Code organisation.** Modules follow the work packages (Section 8). The forwarding logic is independent of SimPy. All randomness is seeded from YAML configs. The complete source is in the code appendix (`AgentRoute_Code_Appendix.pdf`).
+**Code organisation.** Modules follow the work packages (Section 8). The forwarding logic is independent of SimPy. All randomness is seeded from YAML configs. The complete source is in the code appendix, which follows this report in the single file `AgentRoute_Final_Report_Complete.pdf` (also available as `AgentRoute_Code_Appendix.pdf`).
 
 ### 4.1 Simulator
 
@@ -187,6 +188,7 @@ Everything is written in Python and runs on a laptop CPU (Apple M2): SimPy and N
 - **Cloud:** one data centre attached to two core routers.
 - **Delays:** radio 5 ms, Xn 2 ms, backhaul 5 ms, core 3 ms, cloud 20 ms.
 - **Losses:** wired 0.05%, radio 0.2%; 10% of wired links are "bad" (3% loss).
+- **Radio model:** fixed delay and loss in Sections 5.1 to 5.12 (`radio.model: constant`). Section 5.13 uses a distance-dependent table computed with Sionna (`radio.model: sionna`).
 - **Size:** the number of cells grows with the agent count (20 agents per cell, at most 400 cells). The 1,000-agent network has 74 routers and the 10,000-agent network 450.
 
 **Routers.**
@@ -560,6 +562,75 @@ Int8 quantisation costs nothing. Binary signs lose about 11 points.
 
 A 200 ms window is generous. With 50 ms flooding loses two points and needs 79 ms. Below that, answers do not arrive in time. "Flooding is ten times slower" is therefore a statement about this parameter; the honest version is "flooding needs at least about 80 ms to get close to its best".
 
+### 5.13 Distance-dependent radio link from Sionna
+
+Sections 5.1 to 5.12 use a fixed radio hop (5 ms delay, 0.2% loss). To test how much the results depend on this choice, we replaced it by a link model computed with NVIDIA Sionna 2.2.0 [18], an open-source library for physical-layer research. The simulator is not replaced: Sionna only produces a table (`results/radio_lut.npz`), and the simulator reads it (`radio.model: sionna`; the default `constant` reproduces the results of Sections 5.1 to 5.12 bit for bit: a test checks all ten methods at 100 agents, and the fixed-radio column of Table 13 is identical to the 5 m/s point of Section 5.5 for every method and seed).
+
+**Chain (all steps in Sionna).**
+1. TR 38.901 urban-microcell channel [19]: path loss with LoS probability, shadow fading and small-scale fading, for a UE at a given distance from a three-sector gNB.
+2. Per-subcarrier SINR for the uplink (UE to gNB), then the effective SINR with EESM.
+3. The calibrated 5G NR LDPC block error rate (BLER) of one fixed MCS (`sionna.sys.PHYAbstraction`).
+4. HARQ: a UE keeps its LoS state and shadowing across attempts. For each distance, the table stores the probability of delivery at attempt 1 to 4 and of a drop after 4 attempts. A retransmission adds 4 ms to the 5 ms base delay.
+
+For every distance in the grid (5 to 500 m) we simulate 2,000 independent drops with a seeded generator, so the same command rebuilds the same table.
+
+*Table 12. Radio parameters (`configs/radio.yaml`). They are a priori choices, not tuned to the results.*
+
+| Parameter | Value |
+|---|---|
+| Carrier, bandwidth, subcarrier spacing | 3.5 GHz, 20 MHz, 30 kHz (612 subcarriers) |
+| UE transmit power, gNB noise figure | 23 dBm, 5 dB |
+| gNB / UE height | 10 m / 1.5 m |
+| gNB antenna | 38.901 sector pattern, 2 cross-polarised ports combined |
+| MCS | NR table 1, index 4 (QPSK, code rate about 0.59) |
+| HARQ | at most 4 attempts, 4 ms per retransmission |
+
+![Radio table](../../results/figures/radio_bler.png)
+
+*Figure 18. First-transmission BLER and drop probability after four attempts as a function of the UE-gNB distance (blue: Table 12; green: +10 dB link budget).*
+
+**The table.** The drop probability is below 1% up to 100 m, 16% at 250 m (half the cell spacing) and 59% at 500 m. For a UE uniformly placed in a 500 m cell (mean distance 191 m), the mean drop probability of one radio hop is 9.7%, against 0.2% in the fixed model. The +10 dB variant (for example beamforming gain, `--extra-gain-db 10`) lowers it to 1.0%.
+
+**How the radio hops enter the simulator.**
+- AgentRoute, the GNN, greedy, load-aware greedy and the SPFR-style rule use two radio hops per delivered request: the request from the requesting UE and the last hop to the serving agent.
+- The semantic DHT and Chord also use two: the lookup runs between routers, so no answer crosses the radio.
+- The registry and its three replicas use four: request, answer and task at the requester, plus the last hop to the serving agent.
+- Flooding uses five on the path of a delivered request: the request, the answer (agent to its router, router to the requester), the task and the last hop. A lost answer does not end the request if another agent also answered.
+- Cloud agents have no radio hop.
+
+*Table 13. Discovery success (%) with the fixed and the Sionna radio (1,000 agents, mean of 10 seeds; `results/radio_tables.md`).*
+
+| Method | Fixed radio | Sionna radio | Sionna, +10 dB |
+|---|---|---|---|
+| AgentRoute (DQN) | 62.9 | 52.3 | 62.0 |
+| AgentRoute (GNN) | 63.8 | 52.5 | 63.0 |
+| Greedy semantic | 60.4 | 49.8 | 59.0 |
+| Load-aware greedy | 59.4 | 49.2 | 58.5 |
+| SPFR-style | 64.1 | 52.9 | 63.6 |
+| Flooding | 65.4 | 49.3 | 64.0 |
+| Central registry | 63.0 | 44.2 | 60.8 |
+| Registry, 3 replicas | 64.0 | 43.2 | 62.1 |
+| Semantic DHT | 56.0 | 47.8 | 55.4 |
+| Chord (exact) | 0.0 | 0.0 | 0.0 |
+
+![Radio comparison](../../results/figures/radio_compare.png){ width=85% }
+
+*Figure 19. Discovery success with the three radio models (error bars: 95% confidence interval over 10 seeds).*
+
+**Findings.**
+- **Success falls by 8 to 21 points for every method that finds agents.** The loss on the radio link (`link` drops) rises from 1–3% of all requests to about 18% for the hop-by-hop methods, 16% for the semantic DHT, 23% for flooding and 28–29% for the registries. These shares follow the number of radio hops above and the 9.7% loss per hop.
+- **The ranking changes.** With the fixed radio, flooding (65.4%) and the registries (63–64%) are level with or above the DQN (62.9%). With the Sionna radio the SPFR-style rule (52.9%), the GNN (52.5%) and the DQN (52.3%) lead. Flooding (49.3%) is level with greedy (49.8%). The central registry falls from 63.0% to 44.2% and three replicas from 64.0% to 43.2%, because replication does not remove any radio hop. Paired by seed, the DQN is 8.1 points above the central registry (95% CI ±1.9) and 2.9 above flooding (±1.9).
+- **The gain from learning survives.** Paired by seed, the DQN is 2.4 points above greedy (95% CI ±1.5; fixed radio 2.5 ± 1.2) and 3.1 above load-aware greedy (±1.7; fixed radio 3.5 ± 1.0). Against the SPFR-style rule the difference is −0.6 points (±2.0), within noise. The DQN was trained with the fixed radio and not retrained.
+- **Completion time and hops barely change.** Mean times move by at most 0.4 ms, since only delivered requests are counted and most are delivered at the first attempt. Flooding sends fewer messages (413 against 463 per request), because requests lost on the first radio hop are never flooded.
+- **With a +10 dB link budget the results are close to the fixed radio** (0.5 to 2.2 points lower). The conclusions of Sections 5.1 to 5.12 therefore hold for a well-dimensioned radio, but the absolute success values depend on the link budget.
+- **Mobility.** Success stays flat from 0 to 30 m/s, as with the fixed radio (DQN 52.8% to 52.4%, greedy 50.2% to 50.2%, flooding 50.4% to 47.8%; Figure 20). No method moves by more than 2.7 points across speeds and none shows a consistent trend. The distance distribution of a UE does not depend on its speed, and we do not model the Doppler shift.
+
+![Radio mobility](../../results/figures/radio_mobility.png){ width=70% }
+
+*Figure 20. Success against speed with the Sionna radio (solid) and with the fixed radio (dashed).*
+
+**Simplifications.** One MCS and no link adaptation; no interference from other cells and no scheduling delay; no beamforming; attempts are independent given the UE (no combining gain, a mildly pessimistic choice); only the uplink is computed and it is used for both directions; each gNB is one 120-degree sector; speed enters only through the position of the UE. We did not run the 100 to 10,000 agent scalability sweep with the Sionna radio.
+
 ## 6. Discussion
 
 **Network layer or overlay?** The design lives at the network layer: addressing, a forwarding table and hop-by-hop forwarding. It could first be deployed as an overlay over UDP/IP, as IPv6 was first tunnelled over IPv4, before any router hardware changes.
@@ -572,7 +643,8 @@ A 200 ms window is generous. With 50 ms flooding loses two points and needs 79 m
 
 **Limitations.**
 - The dataset is synthetic (50 classes, written by us), and the test set has only 150 paraphrases.
-- The radio is modelled by delay and loss only, and background traffic is modelled analytically.
+- The radio is modelled by delay and loss only in Sections 5.1 to 5.12. Section 5.13 replaces it by a distance-dependent table built with Sionna, which still lacks interference, link adaptation, beamforming and Doppler, and its absolute loss depends on the link budget we assumed.
+- Background traffic is modelled analytically.
 - Mobility does not stress discovery in our model (Section 5.5).
 - The SPFR-style baseline is our re-implementation, without its load and price terms.
 - Policies were trained and evaluated in the same simulator, and do not transfer automatically to tables outside the training range (Sections 5.7 and 5.12).
@@ -591,11 +663,12 @@ AgentRoute addresses packets to capabilities and lets routers learn the decision
 - Mobility models with long-running tasks and handover failures
 - Training on a wider range of table designs, and on-device fine-tuning
 - Signed advertisements
+- Retraining the DQN under the Sionna radio, link adaptation and Sionna RT ray tracing for the radio
 - A UDP overlay prototype on real hosts
 
 ## 8. Team Contributions
 
-Module headers in the code name the responsible member. `docs/KIM_NE_YAPTI.md` gives the full file-by-file list.
+Module headers in the code name the responsible member (Bekir Emre Sarıpınar is responsible for the Sionna radio module). `docs/KIM_NE_YAPTI.md` gives the full file-by-file list.
 
 | Member | Responsibility | Main files |
 |---|---|---|
@@ -607,6 +680,8 @@ Module headers in the code name the responsible member. `docs/KIM_NE_YAPTI.md` g
 ## 9. Use of AI Tools
 
 The first version of the core (dataset, embeddings, S-FIB, forwarding, DQN/GNN, simulator and baselines) was the team's work. An AI coding assistant (Claude) was used for the supporting parts of that version: experiment scripts, plotting code, animations, the Streamlit application, the React + D3 log player and the tooling that builds the PDFs and slides.
+
+The Sionna radio model (Section 5.13) was also written with the AI assistant: the table builder `experiments/build_radio_lut.py`, `agentroute/radio/`, the `radio.model` switch in the simulator, the radio experiments and figures, and that section.
 
 After a critical review of that version, **the v2 revision described in this report was also written with the AI assistant, including the core modules**:
 - `agentroute/sfib.py`, `forwarding.py`, `embeddings.py`, `sim/simulator.py`, `baselines/*`
@@ -652,13 +727,25 @@ These files say so in their header, and `docs/KIM_NE_YAPTI.md` lists what change
 
 [17] A. Carzaniga, D. S. Rosenblum, A. L. Wolf, "Design and Evaluation of a Wide-Area Event Notification Service," ACM Transactions on Computer Systems, 19(3), 2001.
 
+[18] J. Hoydis, S. Cammerer, F. Ait Aoudia, A. Vem, N. Binder, G. Marcus, A. Keller, "Sionna: An Open-Source Library for Next-Generation Physical Layer Research," arXiv:2203.11854, 2022 (software: github.com/NVlabs/sionna, Apache-2.0).
+
+[19] 3GPP TR 38.901, "Study on channel model for frequencies from 0.5 to 100 GHz."
+
 ## Appendix A. Reproducing the results
 
 ```bash
 uv venv --python 3.12 .venv && uv pip install --python .venv/bin/python -r requirements.txt
 .venv/bin/python -m pytest -q                       # tests
 .venv/bin/python experiments/run_all.py             # tau, training, all experiments, figures, demo, videos
-.venv/bin/python docs/build_pdfs.py                 # this report and the code appendix as PDF
+.venv/bin/python docs/build_pdfs.py                 # this report, the code appendix, and both in one PDF
+
+# Radio experiments (Section 5.13). The tables are in the repository; Sionna is only needed to rebuild them.
+.venv/bin/python experiments/run_radio.py compare   # fixed radio vs Sionna radio
+.venv/bin/python experiments/run_radio.py mobility
+.venv/bin/python viz/plot_radio.py
+# rebuild results/radio_lut*.npz (separate environment: pip install -r requirements-radio.txt)
+python experiments/build_radio_lut.py
+python experiments/build_radio_lut.py --extra-gain-db 10 --out results/radio_lut_plus10db.npz
 ```
 
 The full run takes about two hours on a MacBook Air (M2): about 45 minutes of training and an hour of experiments with seven workers. `docs/KULLANIM_KILAVUZU.md` describes every script, the configuration keys and the log format.
