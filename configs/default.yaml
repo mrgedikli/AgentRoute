@@ -50,6 +50,9 @@ sfib:
   encoding: int8            # float32 | int8, representatives in advertisements
   change_threshold: 0.01    # a handover message travels on only if a representative moves more
   refresh_s: 10.0
+  refresh_mode: full        # full: send every table again | incremental: only the rows that changed
+  warm_start: true          # incremental: k-means continues from the representatives already sent
+  tier_aware_delta: false   # true: a far agent's update cannot change the row of a nearby agent
   failure_detect_s: 1.0
   handover_window_s: 2.0    # a gNB is flagged "in handover" for this long
 

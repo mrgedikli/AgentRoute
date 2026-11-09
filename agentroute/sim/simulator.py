@@ -147,6 +147,10 @@ class Simulator:
         self.query_bytes = 0
         self.query_size = header_bytes(self.header, self.dim) + MSG_OVERHEAD
         self.update_msgs = 0        # S-FIB messages triggered by handovers
+        self.update_bytes = 0
+        self.boot_bytes = 0         # the first control round, when every table is new
+        self._steady_start = None   # (ctrl, update) bytes where the steady window opens
+        self._steady_end = None
         self.handovers = 0
         self._init_agents()
 
@@ -159,7 +163,9 @@ class Simulator:
             if method == "spfr":
                 self.radius = cfg["baselines"]["spfr_radius"]
             self.adv = Advertiser(self.G, self.dim, self.radius, summary, sf["k"],
-                                  sf["change_threshold"], sf["encoding"], sf["exact_hops"])
+                                  sf["change_threshold"], sf["encoding"], sf["exact_hops"],
+                                  sf["tier_aware_delta"], sf["warm_start"])
+            self.incremental = sf["refresh_mode"] == "incremental"
             for a in range(self.n_agents):
                 if self.attached[a] >= 0:
                     self.adv.local[self.attached[a]][a] = self.agent_vec[a]
@@ -419,6 +425,7 @@ class Simulator:
             changed, frontier = self.adv.spread(v, frontier, seen, agent, vec, delta, d)
             self.count_ctrl(len(changed), len(changed) * self.adv.delta_bytes())
             self.update_msgs += len(changed)
+            self.update_bytes += len(changed) * self.adv.delta_bytes()
             if self.log.enabled:
                 for n, u in changed:
                     nv = self.adv.tables[u].n_vectors(n) if kind == "adv" else 0
@@ -551,7 +558,10 @@ class Simulator:
         first = True
         while True:
             if self.semantic:
-                msgs, n_bytes = self.adv.build()    # recompute every summary (soft state)
+                if first or not self.incremental:
+                    msgs, n_bytes = self.adv.build()    # recompute every summary (soft state)
+                else:
+                    msgs, n_bytes = self.adv.refresh_incremental()
                 n_reg = int((self.attached >= 0).sum())
                 self.count_ctrl(msgs + n_reg, n_bytes + n_reg * SMALL_MSG)
                 if first and self.log.enabled:
@@ -591,12 +601,30 @@ class Simulator:
         self._compute_upstream()
         self._dist = {}
         if self.semantic:
-            self.count_ctrl(*self.adv.fail(failed))
+            fail = self.adv.fail_incremental if self.incremental else self.adv.fail
+            self.count_ctrl(*fail(failed))
         elif self.method in ("chord", "sdht"):
             self.chord.rebuild()
 
+    def control_window(self):
+        """Mark the control bytes of the steady part of the run.
+
+        The window opens after the first full period and closes at the end of
+        the traffic, so it holds whole refresh rounds and no start-up.
+        """
+        period = self.cfg["sfib"]["refresh_s"]
+        yield self.env.timeout(1e-3)
+        self.boot_bytes = self.ctrl_bytes
+        if self.duration <= period:
+            return
+        yield self.env.timeout(period)
+        self._steady_start = (self.ctrl_bytes, self.update_bytes)
+        yield self.env.timeout(self.duration - period)
+        self._steady_end = (self.ctrl_bytes, self.update_bytes)
+
     # ------------------------------------------------------------------
     def run(self):
+        self.env.process(self.control_window())
         self.env.process(self.query_source())
         self.env.process(self.mobility())
         self.env.process(self.hello())
@@ -630,6 +658,7 @@ class Simulator:
             "msgs_per_query": (self.ctrl_msgs + self.query_msgs) / max(n, 1),
             "ctrl_msgs_per_s": self.ctrl_msgs / self.duration,
             "ctrl_kB_per_s": self.ctrl_bytes / self.duration / 1000.0,
+            "boot_kB": self.boot_bytes / 1000.0,
             "query_msgs_per_query": self.query_msgs / max(n, 1),
             "query_kB_per_query": self.query_bytes / max(n, 1) / 1000.0,
             "oracle_best": float(np.mean([r["oracle_best"] for r in res])) if n else 0.0,
@@ -640,6 +669,13 @@ class Simulator:
             "handovers": self.handovers,
             "update_msgs": self.update_msgs,
         }
+        if self._steady_end is not None:
+            span = self.duration - self.cfg["sfib"]["refresh_s"]
+            ctrl = self._steady_end[0] - self._steady_start[0]
+            update = self._steady_end[1] - self._steady_start[1]
+            out["ctrl_kB_per_s_steady"] = ctrl / span / 1000.0
+            out["update_kB_per_s_steady"] = update / span / 1000.0
+            out["refresh_kB_per_s_steady"] = (ctrl - update) / span / 1000.0
         if self.method in ("registry", "registry3"):
             out["servers_alive"] = sum(self.routers[u].alive for u in self.registry.nodes)
         for reason in ["ttl", "queue", "link", "node_down", "no_route", "wrong_agent", "handover",

@@ -6,7 +6,7 @@ from agentroute.data.capabilities import CLASSES, EXAMPLES, capability_cards, sp
 from agentroute.embeddings import agent_vectors, quantize
 from agentroute.forwarding import (FEATURES, LOCAL, N_FEATURES, GreedyPolicy, LoadAwareGreedy, NodeView, Packet,
                                    SPFRPolicy, accept_rule, candidates, neighbor_features)
-from agentroute.sfib import SFIB, Advertiser, kmeans_summary
+from agentroute.sfib import SFIB, Advertiser, kmeans_summary, match_rows
 
 
 def _norm(x):
@@ -63,9 +63,9 @@ def _vecs(n):
     return _norm(np.eye(n, 384))
 
 
-def _adv(g, radius, summary="exact", k=8, exact_hops=0):
+def _adv(g, radius, summary="exact", k=8, exact_hops=0, tier_aware=False):
     return Advertiser(g, 384, radius, summary=summary, k=k, change_threshold=0.01,
-                      encoding="float32", exact_hops=exact_hops)
+                      encoding="float32", exact_hops=exact_hops, tier_aware=tier_aware)
 
 
 def test_exact_table_respects_radius():
@@ -214,3 +214,74 @@ def test_local_action_is_offered_only_above_tau():
     assert actions[0] == LOCAL and X[0, FEATURES.index("is_local")] == 1.0
     actions, _ = neighbor_features(_view(adv, 0, tau=0.5, local={5: v[0]}), _pkt(v[1]), with_local=True)
     assert LOCAL not in actions
+
+
+def _two_hop_table(n_near=3):
+    """Router 0 has agents, router 1 has agents, router 2 hears about both through 1."""
+    vecs = _norm(np.random.default_rng(3).normal(size=(12, 384)))
+    adv = _adv(nx.path_graph(3), radius=2, summary="kmeans", k=2, exact_hops=1, tier_aware=True)
+    for a in range(n_near):
+        adv.local[1][a] = vecs[a]
+    for a in range(n_near, 12):
+        adv.local[0][a] = vecs[a]
+    adv.build()
+    return adv, vecs
+
+
+def test_far_withdraw_cannot_remove_a_nearby_agent():
+    adv, vecs = _two_hop_table()
+    t = adv.tables[2]
+    i = t.index[1]
+    n_near = int((t.rows[i][1] == 1).sum())
+    # the agent's own vector matches a per-agent row exactly, the worst case for the old code
+    t.apply_delta(i, vecs[0], -1, 2, threshold=0.01)
+    assert int((t.rows[i][1] == 1).sum()) == n_near
+
+
+def test_match_rows_is_one_to_one_and_respects_hops():
+    v = _norm(np.random.default_rng(0).normal(size=(3, 384)))
+    old, old_hops = v[[0, 0, 1]], np.array([1, 1, 2])
+    pairs = match_rows(v[[0, 1]], np.array([1, 1]), old, old_hops, 0.01)
+    assert list(pairs) == [0]                       # row 1 has the wrong hop count
+    pairs = match_rows(v[[0, 0, 0]], np.array([1, 1, 1]), old, old_hops, 0.01)
+    assert len(pairs) == 2                          # only two old rows can be matched
+
+
+def test_incremental_refresh_sends_only_digests_when_nothing_changed():
+    adv, _ = _two_hop_table()
+    full_msgs, full_bytes = adv.round_cost()
+    before = [t.rows[i][0].copy() for t in adv.tables.values() for i in range(len(t.neighbors))]
+    msgs, n_bytes = adv.refresh_incremental()
+    after = [t.rows[i][0] for t in adv.tables.values() for i in range(len(t.neighbors))]
+    assert msgs == full_msgs and n_bytes < full_bytes / 20
+    assert all(a.shape == b.shape and np.allclose(a, b) for a, b in zip(before, after))
+
+
+def test_incremental_refresh_repairs_a_missed_update():
+    adv, vecs = _two_hop_table()
+    new_agent = _norm(np.random.default_rng(9).normal(size=(1, 384)))[0]
+    adv.local[1][50] = new_agent                    # no handover message reached the neighbours
+    _, n_bytes = adv.refresh_incremental()
+    for nbr in (0, 2):
+        t = adv.tables[nbr]
+        assert np.isclose((t.rows[t.index[1]][0] @ new_agent).max(), 1.0, atol=1e-3)
+    assert n_bytes < adv.round_cost()[1] / 2
+
+
+def test_incremental_refresh_for_exact_tables():
+    v = _vecs(2)
+    adv = _adv(nx.path_graph(4), radius=3, summary="exact")
+    adv.local[0][1] = v[0]
+    adv.build()
+    _, quiet = adv.refresh_incremental()
+    adv.local[0].pop(1)
+    adv.local[3][1] = v[0]
+    _, moved = adv.refresh_incremental()
+    assert moved > quiet
+    assert adv.tables[2].n_vectors(3) == 1 and adv.tables[1].n_vectors(0) == 0
+
+
+def test_failure_without_a_rebuild_forgets_the_dead_router():
+    adv, _ = _two_hop_table()
+    adv.fail_incremental([1])
+    assert adv.tables[0].n_vectors(1) == 0 and adv.tables[2].n_vectors(1) == 0

@@ -16,6 +16,10 @@ as a withdraw or announce, and a router forwards it only if it moved one of
 its representatives by more than a threshold. Small changes wait for the
 periodic refresh, which recomputes every summary from the true state.
 
+The refresh has two modes. "full" sends every table again. "incremental" keeps
+the same soft state but sends only the rows that changed, plus a small digest
+on links where nothing did.
+
 Responsible: Bekir Emre Sarıpınar (v2 revision written with AI assistance)
 """
 from collections import deque
@@ -26,25 +30,39 @@ from agentroute.embeddings import header_bytes, quantize
 
 MSG_OVERHEAD = 40       # bytes of headers in every control message
 ROW_META = 8            # hop count and weight next to each vector
+ROW_ID = 2              # incremental refresh: which row of the link is replaced or removed
+DIGEST = 8              # incremental refresh: hash of the rows on a link, "nothing changed"
 
 
-def kmeans_summary(vecs, weights, hops, k, iters=10, medoid=False):
+def kmeans_summary(vecs, weights, hops, k, iters=10, medoid=False, init=None):
     """Weighted spherical k-means. Returns (reps, rep_hops, rep_weights).
 
     Initialisation is deterministic (heaviest vector first, then farthest
     point), so the same input always gives the same summary. With medoid=True
     each centre is replaced by the closest real input vector.
+
+    With `init` (the representatives the receiver already has) the clustering
+    continues from there, so a few changed inputs move the centres only a
+    little. A fresh start could pick entirely different centres.
     """
     n = len(vecs)
     if n <= k:
         return vecs.copy(), hops.copy(), weights.copy()
-    centers = [int(np.argmax(weights))]
-    best_sim = vecs @ vecs[centers[0]]
-    for _ in range(1, k):
-        nxt = int(np.argmin(best_sim))
-        centers.append(nxt)
-        best_sim = np.maximum(best_sim, vecs @ vecs[nxt])
-    reps = vecs[centers].copy()
+    if init is not None and len(init):
+        reps = init[:k].copy()
+        best_sim = (vecs @ reps.T).max(axis=1)
+        while len(reps) < k:                    # clusters that emptied are seeded again
+            nxt = int(np.argmin(best_sim))
+            reps = np.vstack([reps, vecs[nxt]])
+            best_sim = np.maximum(best_sim, vecs @ vecs[nxt])
+    else:
+        centers = [int(np.argmax(weights))]
+        best_sim = vecs @ vecs[centers[0]]
+        for _ in range(1, k):
+            nxt = int(np.argmin(best_sim))
+            centers.append(nxt)
+            best_sim = np.maximum(best_sim, vecs @ vecs[nxt])
+        reps = vecs[centers].copy()
     assign = None
     for _ in range(iters):
         new_assign = np.argmax(vecs @ reps.T, axis=1)
@@ -68,10 +86,31 @@ def kmeans_summary(vecs, weights, hops, k, iters=10, medoid=False):
     return reps.astype(np.float32), rep_hops, rep_weights
 
 
+def match_rows(new, new_hops, old, old_hops, threshold):
+    """Pair new rows with the rows the receiver already holds, closest pairs first.
+
+    Two rows are the same row if their hop counts agree and they differ by at
+    most `threshold` (1 - cosine). Each old row is used once. Returns {new: old}.
+    """
+    if len(new) == 0 or len(old) == 0:
+        return {}
+    sims = new @ old.T
+    sims[new_hops[:, None] != old_hops[None, :]] = -2.0
+    cand = np.argwhere(sims >= 1.0 - threshold)
+    cand = cand[np.argsort(-sims[cand[:, 0], cand[:, 1]], kind="stable")]
+    pairs, used = {}, set()
+    for i, j in cand:
+        i, j = int(i), int(j)
+        if i not in pairs and j not in used:
+            pairs[i] = j
+            used.add(j)
+    return pairs
+
+
 class SFIB:
     """S-FIB of a single router: per neighbour index, (reps, hops, weights)."""
 
-    def __init__(self, node, neighbors, dim, radius, k, exact_hops=0):
+    def __init__(self, node, neighbors, dim, radius, k, exact_hops=0, tier_aware=False):
         self.node = node
         self.neighbors = list(neighbors)
         self.index = {n: i for i, n in enumerate(self.neighbors)}
@@ -79,6 +118,7 @@ class SFIB:
         self.radius = radius
         self.k = k
         self.exact_hops = exact_hops
+        self.tier_aware = tier_aware    # a delta may only touch rows of its own tier
         self.rows = [self._empty() for _ in self.neighbors]
         self.exact = [{} for _ in self.neighbors]   # agent -> (vector, hops), exact mode only
         self._matrix = None
@@ -121,12 +161,21 @@ class SFIB:
                 return False
             self.set_row(i, vec[None, :].copy(), np.array([hop]), np.ones(1, np.float32))
             return True
-        sims = reps @ vec
-        j = int(np.argmax(sims))
+        pick = np.arange(len(reps))
+        if self.tier_aware:         # a far agent must not change the row of a nearby one
+            pick = np.nonzero((hops <= self.exact_hops) == (hop <= self.exact_hops))[0]
+            if len(pick) == 0:
+                if delta < 0:
+                    return False
+                self.set_row(i, np.vstack([reps, vec]), np.append(hops, hop), np.append(weights, 1.0))
+                return True
+        sims = reps[pick] @ vec
+        best = int(np.argmax(sims))
+        j = int(pick[best])
         if delta > 0 and hop <= self.exact_hops:      # per-agent row of a nearby agent
             self.set_row(i, np.vstack([reps, vec]), np.append(hops, hop), np.append(weights, 1.0))
             return True
-        if delta > 0 and len(reps) < self.k and sims[j] < 0.95:
+        if delta > 0 and len(pick) < self.k and sims[best] < 0.95:
             self.set_row(i, np.vstack([reps, vec]), np.append(hops, hop), np.append(weights, 1.0))
             return True
         new_weight = weights[j] + delta
@@ -190,7 +239,7 @@ class Advertiser:
     """Builds and maintains the S-FIBs of all routers and counts the control traffic."""
 
     def __init__(self, graph, dim, radius, summary="kmeans", k=8, change_threshold=0.01,
-                 encoding="int8", exact_hops=1):
+                 encoding="int8", exact_hops=1, tier_aware=False, warm_start=True):
         self.graph = graph
         self.dim = dim
         self.radius = radius
@@ -199,8 +248,9 @@ class Advertiser:
         self.change_threshold = change_threshold
         self.encoding = encoding
         self.exact_hops = exact_hops    # agents this close keep their own row (two-tier table)
+        self.warm_start = warm_start    # incremental refresh continues k-means from the old centres
         self.alive = set(graph.nodes)
-        self.tables = {u: SFIB(u, sorted(graph.neighbors(u)), dim, radius, self.k, exact_hops)
+        self.tables = {u: SFIB(u, sorted(graph.neighbors(u)), dim, radius, self.k, exact_hops, tier_aware)
                        for u in graph.nodes}
         self.local = {u: {} for u in graph.nodes}       # router -> {agent id: vector}
         self.row_bytes = header_bytes(encoding, dim) + ROW_META
@@ -216,7 +266,7 @@ class Advertiser:
             return reps
         return np.stack([quantize(r, self.encoding) for r in reps]).astype(np.float32)
 
-    def _advert(self, u, w):
+    def _advert(self, u, w, warm=None):
         """The summary that router u sends to neighbour w, or None if it knows nothing."""
         vecs, hops, weights = [], [], []
         keep = None                     # rows that are sent as they are
@@ -243,7 +293,7 @@ class Advertiser:
             rows.append((self._encode(keep), np.ones(len(keep), int), np.ones(len(keep), np.float32)))
         if vecs:
             reps, h, wt = kmeans_summary(np.vstack(vecs), np.concatenate(weights), np.concatenate(hops),
-                                         self.k, medoid=self.summary == "medoid")
+                                         self.k, medoid=self.summary == "medoid", init=warm)
             rows.append((self._encode(reps), h, wt))
         if not rows:
             return None
@@ -324,6 +374,84 @@ class Advertiser:
                     n_bytes += MSG_OVERHEAD + len(t.rows[i][0]) * self.row_bytes
         return msgs, n_bytes
 
+    # ---- incremental refresh ----------------------------------------------
+    def _diff_link(self, u, w):
+        """What u has to tell w to bring w's row about u up to date.
+
+        Returns None if nothing needs to be sent, else (new row, rows sent,
+        rows withdrawn). The comparison is against what w actually holds, so
+        small changes add up until they cross the threshold.
+        """
+        t = self.tables[w]
+        old, old_hops, old_wt = t.rows[t.index[u]]
+        warm = old[old_hops > self.exact_hops] if self.warm_start else None
+        adv = self._advert(u, w, warm)
+        if adv is None:
+            return None if len(old) == 0 else (t._empty(), 0, len(old))
+        new, new_hops, new_wt = adv
+        pairs = match_rows(new, new_hops, old, old_hops, self.change_threshold)
+        fresh = np.array([i for i in range(len(new)) if i not in pairs], dtype=int)
+        n_gone = max(0, len(old) - len(pairs) - len(fresh))
+        if len(fresh) == 0 and n_gone == 0:
+            return None
+        kept = np.array(sorted(pairs.values()), dtype=int)
+        row = (np.vstack([old[kept], new[fresh]]), np.concatenate([old_hops[kept], new_hops[fresh]]),
+               np.concatenate([old_wt[kept], new_wt[fresh]]))
+        return row, len(fresh), n_gone
+
+    def _link_cost(self, n_sent, n_gone):
+        return MSG_OVERHEAD + n_sent * (self.row_bytes + ROW_ID) + n_gone * ROW_ID
+
+    def refresh_incremental(self, digests=True):
+        """A soft-state round that sends only the rows that changed.
+
+        Links with nothing to report carry a digest, so the receiver can still
+        tell that its rows are alive. Returns (messages, bytes).
+        """
+        if self.summary == "exact":
+            return self._refresh_exact(digests)
+        links = [(u, w) for u in self.alive for w in self.tables[u].neighbors if w in self.alive]
+        msgs, n_bytes, touched = 0, 0, set()
+        for _ in range(self.radius):
+            updates = [(u, w, self._diff_link(u, w)) for u, w in links]
+            updates = [x for x in updates if x[2] is not None]
+            if not updates:
+                break
+            for u, w, (row, n_sent, n_gone) in updates:
+                t = self.tables[w]
+                t.set_row(t.index[u], *row)
+                msgs += 1
+                n_bytes += self._link_cost(n_sent, n_gone)
+                touched.add((u, w))
+        if digests:
+            for u, w in links:
+                t = self.tables[w]
+                if (u, w) not in touched and len(t.rows[t.index[u]][0]):
+                    msgs += 1
+                    n_bytes += MSG_OVERHEAD + DIGEST
+        return msgs, n_bytes
+
+    def _refresh_exact(self, digests=True):
+        """Same idea for per-agent tables: count only agents that were added or removed."""
+        before = {u: [dict(e) for e in self.tables[u].exact] for u in self.alive}
+        self._build_exact()
+        msgs, n_bytes = 0, 0
+        for u in self.alive:
+            t = self.tables[u]
+            for i, n in enumerate(t.neighbors):
+                if n not in self.alive:
+                    continue
+                old, new = before[u][i], t.exact[i]
+                n_sent = sum(1 for a, (_, h) in new.items() if a not in old or old[a][1] != h)
+                n_gone = sum(1 for a in old if a not in new)
+                if n_sent or n_gone:
+                    msgs += 1
+                    n_bytes += self._link_cost(n_sent, n_gone)
+                elif digests and new:
+                    msgs += 1
+                    n_bytes += MSG_OVERHEAD + DIGEST
+        return msgs, n_bytes
+
     # ---- incremental updates (handover) -----------------------------------
     def spread(self, v, frontier, seen, agent, vec, delta, d):
         """Move a withdraw/announce one hop further.
@@ -372,6 +500,20 @@ class Advertiser:
                 msgs += 1
                 n_bytes += MSG_OVERHEAD + value[1] * self.row_bytes
         return msgs, n_bytes
+
+    def fail_incremental(self, nodes):
+        """Failure without a rebuild: forget the dead neighbours, then resynchronise."""
+        self.alive -= set(nodes)
+        for v in nodes:
+            self.local[v] = {}
+        self._dag_cache = {}
+        for u in self.alive:
+            t = self.tables[u]
+            for v in nodes:
+                if v in t.index:
+                    t.set_row(t.index[v], *t._empty())
+                    t.exact[t.index[v]] = {}
+        return self.refresh_incremental(digests=False)
 
     def _snapshot(self):
         snap = {}
