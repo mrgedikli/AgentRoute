@@ -242,7 +242,7 @@ function successWithCeiling(s, exp, methods, o) {
   }
   series.push({ name: "Matching ceiling", labels, values: e.methods[methods[0]].oracle_best.map((v) => v * 100) });
   colors.push("0B0B0B");
-  s.addChart(pres.charts.LINE, series, chartOpts({ ...o, colors, fmt: '0"%"', min: 0, yTitle: "success" }));
+  s.addChart(pres.charts.LINE, series, chartOpts({ ...o, colors, fmt: '0"%"', min: o.min === undefined ? 0 : o.min, yTitle: "success" }));
 }
 
 // ================================================================= slides
@@ -499,7 +499,7 @@ pres.addSection({ title: "Learning and evaluation" });
   const s = content("Learning and evaluation", "One shared DQN: deliver here, or forward where?", "goktepe",
     `BEKİR GÖKTEPE. Bu kararı bir DQN veriyor. Router'ların komşu sayısı farklı olduğu için ağ her seçeneği ayrı ayrı puanlıyor: girdi o seçeneğin 15 özelliği, çıktı tek bir Q değeri. Seçenekler komşular ve "burada teslim et", yani ağ durup durmayacağına da karar veriyor. Tüm router'lar aynı ağı paylaşıyor, eğitim simülasyonda offline yapılıyor. Ödül her kararda gecikmeye bağlı küçük bir ceza, doğru teslimde artı bir, düşme ya da yanlış agent'ta eksi bir. Eğitimde Double DQN, replay buffer ve target network kullandık.`);
   text(s, "Features of one action (15)", 0.6, 1.5, 4.2, 0.4, { fontSize: 16, bold: true });
-  const feats = ["S-FIB similarity: max, mean, gap to best", "match above τ, hop distance", "queue occupancy (hello)",
+  const feats = ["S-FIB similarity: max, mean, gap to best", "match above τ, hop distance", "queue occupancy",
     "link quality and delay", "neighbour in handover", "TTL left, already visited", "type: gNB / core / cloud / deliver here"];
   feats.forEach((f, i) => {
     box(s, 0.6, 2.0 + i * 0.56, 4.2, 0.46, PANEL);
@@ -523,34 +523,35 @@ pres.addSection({ title: "Learning and evaluation" });
     { text: "Reward  ", options: { bold: true } },
     { text: "per decision −(0.05 + delay / 100 ms) · right agent +1 · drop or wrong agent −1", options: { breakLine: true } },
     { text: "Training  ", options: { bold: true } },
-    { text: "Double DQN, replay 50k, target net, ε 1 → 0.05, 300 random scenarios" },
+    { text: "Double DQN, replay buffer, target network; offline, on 300 random scenarios" },
   ], 5.75, 5.6, 6.9, 0.95, { fontSize: 13, color: INK });
 }
 
-// 12 ---- learning curve
+// 12 ---- learning curve + paired test differences
 if (train) {
-  const best = train.val_success[bestIdx];
   const bestRet = train.val_return[bestIdx];
   const v = verb(bestRet, Math.max(train.greedy_val_return, train.load_val_return), 0.01);
   const first = train.val_return[0];
-  const s = content("Learning and evaluation", `Validation: the DQN ${v} both same-table rules`, "goktepe",
-    `Bu eğri, doğrulama senaryolarında keşif kapalıyken ölçüldü. Eğitim getirisini göstermiyoruz, çünkü keşif azaldıkça o zaten yükselir. DQN'in getirisi ${td(first.toFixed(2))} ile başlıyor, en iyi değeri ${td(bestRet.toFixed(2))}. Aynı ödülle greedy ${td(train.greedy_val_return.toFixed(2))}, yük duyarlı greedy ${td(train.load_val_return.toFixed(2))}. Yani aynı tabloyu kullanan iki kuralı da geçiyor.`);
+  const k1 = "1000 agents, load 1";
+  const g1 = scen(k1, "agentroute vs greedy"); const l1 = scen(k1, "agentroute vs greedy_load"); const s1 = scen(k1, "agentroute vs spfr");
+  const s = content("Learning and evaluation", `The DQN ${v} both same-table rules`, "goktepe",
+    `Solda doğrulama eğrisi var, keşif kapalıyken ölçüldü. DQN'in getirisi ${td(first.toFixed(2))} ile başlıyor, en iyi değeri ${td(bestRet.toFixed(2))}. Aynı ödülle greedy ${td(train.greedy_val_return.toFixed(2))}, yük duyarlı greedy ${td(train.load_val_return.toFixed(2))}. Sağda asıl test var: aynı isteklerle eşleştirilmiş başarı farkı. ${tn(1000)} agent'ta DQN greedy'den ${tabs(g1)}, yük duyarlı kuraldan ${tabs(l1)} puan iyi${ciVerb(g1) === "beats" && ciVerb(l1) === "beats" ? ", güven aralıkları sıfırı dışlıyor" : ""}. Tam tablo tutan SPFR tarzı kural ${tabs(s1)} puan önde. Gecikmede anlamlı bir fark yok.`);
   const labels = train.episode.map(String);
-  const series = (key, loadKey, greedyKey, f) => [
-    { name: M.agentroute.name, labels, values: train[key].map(f) },
-    ...(S.train_gnn && S.train_gnn.episode.length === train.episode.length ? [{ name: M.agentroute_gnn.name, labels, values: S.train_gnn[key].map(f) }] : []),
-    { name: "Greedy (reference)", labels, values: labels.map(() => f(train[greedyKey])) },
-    { name: "Load-aware greedy (reference)", labels, values: labels.map(() => f(train[loadKey])) },
-  ];
-  const colors = S.train_gnn && S.train_gnn.episode.length === train.episode.length
-    ? [M.agentroute.color, M.agentroute_gnn.color, M.greedy.color, M.greedy_load.color]
-    : [M.agentroute.color, M.greedy.color, M.greedy_load.color];
-  s.addChart(pres.charts.LINE, series("val_return", "load_val_return", "greedy_val_return", (x) => x),
-    chartOpts({ x: 0.6, y: 1.45, w: 6.0, h: 5.0, colors, title: "Validation return per request", xTitle: "training episode",
-      yTitle: "return", extra: { lineDataSymbolSize: 5 } }));
-  s.addChart(pres.charts.LINE, series("val_success", "load_val_success", "greedy_val_success", (x) => x * 100),
-    chartOpts({ x: 6.75, y: 1.45, w: 6.0, h: 5.0, colors, fmt: '0"%"', title: "Validation success", xTitle: "training episode",
-      yTitle: "success", legend: false, extra: { lineDataSymbolSize: 5 } }));
+  s.addChart(pres.charts.LINE, [
+    { name: M.agentroute.name, labels, values: train.val_return },
+    { name: "Greedy (reference)", labels, values: labels.map(() => train.greedy_val_return) },
+    { name: "Load-aware greedy (reference)", labels, values: labels.map(() => train.load_val_return) },
+  ], chartOpts({ x: 0.6, y: 1.45, w: 6.0, h: 5.0, colors: [M.agentroute.color, M.greedy.color, M.greedy_load.color],
+    title: "Validation return per request (no exploration)", xTitle: "training episode", yTitle: "return", extra: { lineDataSymbolSize: 5 } }));
+  const scenarios = Object.keys(matched);
+  const pairs = [["agentroute vs greedy", "DQN − greedy", M.greedy.color], ["agentroute vs greedy_load", "DQN − load-aware greedy", M.greedy_load.color],
+    ["agentroute vs spfr", "DQN − SPFR-style (full table)", M.spfr.color]];
+  s.addChart(pres.charts.BAR, pairs.map(([k, name]) => ({ name, labels: scenarios.map((x) => x.replace(" agents, load ", " agents · load ")),
+    values: scenarios.map((x) => matched[x][k].success_diff_points) })),
+  chartOpts({ x: 6.75, y: 1.45, w: 6.0, h: 4.35, colors: pairs.map((x) => x[2]), title: "Test: paired success difference (points)",
+    yTitle: "points", extra: { barDir: "col", barGapWidthPct: 60, barGrouping: "clustered" } }));
+  text(s, `${k1.replace(", load 1", "")}: ${pairTxt(g1)} vs greedy · ${pairTxt(l1)} vs load-aware · ${pairTxt(s1)} vs SPFR-style`,
+    6.75, 5.85, 6.0, 0.65, { fontSize: 11, color: INK2, align: "center" });
 }
 
 // 13 ---- setup
@@ -558,12 +559,12 @@ if (train) {
   const s = content("Learning and evaluation", "Evaluation setup", "goktepe",
     `Sonuçlar SimPy ile yazdığımız simülatörden geliyor: hücreler, core ağ ve cloud, en fazla 450 router. İstekler eğitimde hiç görülmemiş 150 cümle. Bilerek güçlü rakipler ekledik: yük duyarlı kural, SPFR tarzı kural, üç replikalı registry ve semantik DHT. Chord tanım gereği hiçbir şey bulamıyor, onu sadece referans olarak tutuyoruz. Her nokta 10 seed'in ortalaması.`);
   const cards = [
-    ["Topology", "gNB + edge cells, core grid, cloud; 9 → 400 cells, up to 450 routers; queues, bursty hotspots, lossy links"],
-    ["Agents", "40% fixed edge, 50% mobile (random waypoint, handover with hysteresis), 10% cloud; every agent has its own vector"],
-    ["Requests", "150 unseen paraphrases of 50 capability classes, 10 requests/s (rate swept 1–300/s), TTL 16"],
-    ["Rivals", "greedy, load-aware greedy, SPFR-style · flooding · registry (1 and 3 replicas) · semantic DHT · Chord exact"],
-    ["Metrics", "success vs matching ceiling, time on requests both delivered, hops, control kB/s, query kB/request"],
-    ["Runs", "SimPy + NetworkX, 10 seeds per point, paired 95% CI, 100 → 10,000 agents, laptop CPU"],
+    ["Topology", "gNB + edge cells, core grid, cloud; up to 400 cells and 450 routers, with queues and lossy links"],
+    ["Agents", "40% fixed edge, 50% mobile (random waypoint, handovers), 10% cloud"],
+    ["Requests", "150 unseen paraphrases of 50 capability classes, 10 requests/s, TTL 16"],
+    ["Rivals", "greedy, load-aware greedy, SPFR-style · flooding · registry (1 and 3 replicas) · semantic DHT · Chord"],
+    ["Metrics", "success against the matching ceiling, time, hops, control kB/s, query kB per request"],
+    ["Runs", "SimPy, 10 seeds per point, paired 95% CI, 100 → 10,000 agents"],
   ];
   cards.forEach((c, i) => {
     const x = 0.6 + (i % 3) * 4.1;
@@ -577,11 +578,15 @@ if (train) {
 // 14 ---- scale
 {
   const s = content("Learning and evaluation", `Scaling to ${num(big)} agents`, "goktepe",
-    `Solda başarı var. ${tn(big)} agent'ta eşleşme tavanı ${tp(gr("oracle_best"))}, DQN ${tp(ar("success_rate"))}, greedy ${tp(gr("success_rate"))}, SPFR tarzı ${tp(sp("success_rate"))}, flooding ${tp(fl("success_rate"))}, merkezi registry ${tp(rg("success_rate"))}. Sağda kontrol trafiği var. Sürelere bakarsak bu ölçekte yönlendirme ${ms(gr("time_ms"))}, registry ${ms(rg("time_ms"))}, flooding ${ms(fl("time_ms"))}.`);
+    `Solda başarı var. ${tn(big)} agent'ta eşleşme tavanı ${tp(gr("oracle_best"))}, DQN ${tp(ar("success_rate"))}, greedy ${tp(gr("success_rate"))}, SPFR tarzı ${tp(sp("success_rate"))}, flooding ${tp(fl("success_rate"))}, merkezi registry ${tp(rg("success_rate"))}. Dikkat: başarı ekseni %30'dan başlıyor. Sağda kontrol trafiği var. Alttaki satırda süreler: bu ölçekte yönlendirme ${ms(gr("time_ms"))}, registry ${ms(rg("time_ms"))}, flooding ${ms(fl("time_ms"))}.`);
   const lab = (x) => (x >= 1000 ? `${x / 1000}K` : String(x));
-  successWithCeiling(s, "scale", ALL, { x: 0.6, y: 1.45, w: 6.0, h: 5.05, labelFn: lab, title: "Discovery success", xTitle: "number of agents" });
-  methodLines(s, "scale", "ctrl_kB_per_s", ALL.filter((m) => m !== "flooding"), { x: 6.75, y: 1.45, w: 6.0, h: 5.05, log: true, labelFn: lab,
+  const drawn = ALL.filter((m) => m !== "chord");     // Chord is 0% everywhere and would flatten the axis
+  successWithCeiling(s, "scale", drawn, { x: 0.6, y: 1.45, w: 6.0, h: 4.5, min: 30, labelFn: lab, title: "Discovery success", xTitle: "number of agents" });
+  methodLines(s, "scale", "ctrl_kB_per_s", drawn.filter((m) => m !== "flooding"), { x: 6.75, y: 1.45, w: 6.0, h: 4.5, log: true, labelFn: lab,
     title: "Control traffic, whole network (kB/s, log)", xTitle: "number of agents", yTitle: "kB/s", legend: false });
+  box(s, 0.6, 6.05, 12.13, 0.6, PANEL);
+  text(s, `Time per request at ${num(big)} agents: forwarding ${ms(gr("time_ms"))} · registry ${ms(rg("time_ms"))} · flooding ${ms(fl("time_ms"))}     (Chord, exact match: 0%, not drawn)`,
+    0.85, 6.05, 11.7, 0.6, { fontSize: 14, color: INK, valign: "middle" });
 }
 
 // 15 ---- traffic vs request rate
@@ -613,32 +618,53 @@ if (train) {
   const rb = S.failure.registry_by_server[String(fmax)];
   const regCase = `${pct(rb.up)} when its server survives (${rb.n_up} of ${rb.n_up + rb.n_down} seeds) and ${pct(rb.down)} when it does not`;
   const s = content("Learning and evaluation", "Robustness: failures and load", "goktepe",
-    `Router'ların ${tp(fmax)} kadarı düştüğünde greedy ${tp(get("failure", "greedy", "success_rate", fmax))}, üç replikalı registry ${tp(get("failure", "registry3", "success_rate", fmax))} başarı veriyor, bu ortalamada on denemenin birinde üç replika birden düşüyor. Tek sunuculu registry, sunucu ayaktaysa ${tp(rb.up)}, düşerse ${tp(rb.down)}. Replika bunu büyük ölçüde çözüyor. Sağda yük artışı var: en yüksek yükte DQN ${tp(get("load", "agentroute", "success_rate", lmax))}, greedy ${tp(get("load", "greedy", "success_rate", lmax))}, flooding ${tp(get("load", "flooding", "success_rate", lmax))}.`);
+    `Router'ların ${tp(fmax)} kadarı düştüğünde greedy ${tp(get("failure", "greedy", "success_rate", fmax))}, üç replikalı registry ${tp(get("failure", "registry3", "success_rate", fmax))} başarı veriyor. Tek sunuculu registry, sunucu ayaktaysa ${tp(rb.up)}, düşerse ${tp(rb.down)}. Onun çizgisi düzgün inmiyor, çünkü ortalama, sunucunun on denemenin kaçında düştüğüne bağlı. Replika bunu büyük ölçüde çözüyor. Sağda yük artışı var: en yüksek yükte DQN ${tp(get("load", "agentroute", "success_rate", lmax))}, greedy ${tp(get("load", "greedy", "success_rate", lmax))}, flooding ${tp(get("load", "flooding", "success_rate", lmax))}.`);
   successWithCeiling(s, "failure", ALL, { x: 0.6, y: 1.45, w: 6.0, h: 5.05,
     labelFn: (x) => `${Math.round(x * 100)}%`, title: "Success vs failed routers", xTitle: "failed routers" });
   successWithCeiling(s, "load", ALL, { x: 6.75, y: 1.45, w: 6.0, h: 5.05, title: "Success vs network load", xTitle: "load factor", legend: false });
 }
 
-// 17 ---- demo video(s)
-function videoSlide(file, title, notes) {
+// 17 ---- demo video
+function videoSlide(file, title, notes, section = "Learning and evaluation") {
   const video = path.join(FIG, `${file}.mp4`);
   const poster = path.join(FIG, `${file}_poster.png`);
   if (!fs.existsSync(video)) return;
-  const s = content("Learning and evaluation", title, "goktepe", notes);
+  const s = content(section, title, "goktepe", notes);
   const cover = fs.existsSync(poster) ? `data:image/png;base64,${fs.readFileSync(poster).toString("base64")}` : undefined;
   s.addMedia({ type: "video", path: video, x: 1.0, y: 1.4, w: 11.33, h: 5.35, ...(cover ? { cover } : {}) });
 }
 videoSlide("agentroute_demo", "Demo: a request routed by meaning",
   `Bu kayıt gerçek bir simülasyon logundan üretildi. Önce duyurular tabloları dolduruyor, sonra bir istek hop hop uygun agent'a gidiyor, sonra bir telefon hücre değiştiriyor ve sadece yakındaki girdiler güncelleniyor.`);
+// 18 ---- realistic radio (Sionna)
 {
-  const f = path.join(FIG, "greedy_vs_agentroute.json");
+  const f = path.join(ROOT, "results", "raw", "radio_compare.csv");
   if (fs.existsSync(f)) {
-    const c = JSON.parse(fs.readFileSync(f, "utf8"));
-    const say = (o) => (o.type === "deliver"
-      ? `${o.hops} hop'ta ve ${td(o.time_ms)} ms içinde ${o.agent_class} agent'ına teslim ediliyor`
-      : `${o.hops} hop sonra başarısız oluyor (${o.reason.replace("_", " ")})`);
-    videoSlide("greedy_vs_agentroute", "One selected example: greedy vs learned",
-      `Şunu açıkça söyleyelim: bu tek bir seçilmiş örnek, ortalama değil. Turuncu halkalar yoğun router'lar. "${c.text}" isteği greedy ile ${say(c.greedy)}, öğrenen politikayla ${say(c.agentroute)}.`);
+    const rowsCsv = fs.readFileSync(f, "utf8").trim().split("\n").map((l) => l.split(","));
+    const H = rowsCsv[0];
+    const im = H.indexOf("method"); const is = H.indexOf("success_rate"); const ir = H.indexOf("radio");
+    const acc = {};
+    rowsCsv.slice(1).forEach((r) => { const k = `${r[im]}|${r[ir]}`; (acc[k] = acc[k] || []).push(Number(r[is])); });
+    const rs = (m, radio) => mean(acc[`${m}|${radio}`]);
+    const methods = ALL.filter((m) => m !== "chord" && acc[`${m}|sionna`]);
+    const drop = (m) => (rs(m, "constant") - rs(m, "sionna")) * 100;
+    const drops = methods.map(drop);
+    const lo = Math.round(Math.min(...drops)); const hi = Math.round(Math.max(...drops));
+    const s = content("Learning and evaluation", `A realistic radio hop costs ${lo}–${hi} points of success`, "goktepe",
+      `Buraya kadar radyo hop'u sabit bir kayıp ve gecikmeydi. Burada onu Sionna ile hesapladık: 3GPP TR 38.901 kanalı, 5G NR blok hata oranı ve HARQ. Sionna simülatörün yerine geçmiyor, mesafeye göre kayıp ve gecikme tablosu üretiyor. Bütün yöntemlerde başarı düşüyor: DQN ${tp(rs("agentroute", "constant"))} değerinden ${tp(rs("agentroute", "sionna"))} değerine, greedy ${tp(rs("greedy", "constant"))} değerinden ${tp(rs("greedy", "sionna"))} değerine. En çok registry düşüyor, ${tp(rs("registry", "constant"))} değerinden ${tp(rs("registry", "sionna"))} değerine, çünkü her istek radyodan dört kez geçiyor. Sinyal 10 dB güçlenince kayıp geri geliyor. DQN'i bu radyoyla yeniden eğitmedik.`);
+    const labels = methods.map((m) => M[m].name);
+    s.addChart(pres.charts.BAR, [
+      { name: "Fixed radio", labels, values: methods.map((m) => rs(m, "constant") * 100) },
+      { name: "Sionna radio", labels, values: methods.map((m) => rs(m, "sionna") * 100) },
+      { name: "Sionna radio, +10 dB", labels, values: methods.map((m) => rs(m, "sionna_plus10db") * 100) },
+    ], chartOpts({ x: 0.6, y: 1.45, w: 8.0, h: 5.05, colors: ["8A8984", "2A78D6", "1BAF7A"], fmt: '0"%"', min: 0,
+      title: `Discovery success, ${num(1000)} agents`, yTitle: "success", extra: { barDir: "col", barGapWidthPct: 40, barGrouping: "clustered" } }));
+    box(s, 8.9, 1.6, 3.83, 4.9, PANEL);
+    text(s, "The radio hop, from Sionna", 9.15, 1.8, 3.4, 0.45, { fontSize: 18, bold: true, fontFace: "Cambria" });
+    bullets(s, ["3GPP TR 38.901 channel, 5G NR block error rate, HARQ",
+      "UE–gNB distance → loss and retransmission delay, read by the simulator from a table",
+      `Registry crosses the radio four times per request: ${pct(rs("registry", "constant"))} → ${pct(rs("registry", "sionna"))}`,
+      `DQN ${pct(rs("agentroute", "constant"))} → ${pct(rs("agentroute", "sionna"))}, still ahead of greedy (${pct(rs("greedy", "sionna"))})`,
+      "Not modelled: interference, link adaptation, Doppler"], 9.15, 2.4, 3.4, 4.0, { fontSize: 14 });
   }
 }
 
@@ -646,11 +672,13 @@ videoSlide("agentroute_demo", "Demo: a request routed by meaning",
 {
   const s = pres.addSlide({ masterName: "TITLE_DARK", sectionTitle: "Learning and evaluation" });
   s.addText("Takeaways", { placeholder: "title" });
-  const load = ciVerb(dqnVsLoad);
+  const learn = ciVerb(dqnVsGreedy) === "beats"
+    ? `Learning adds ${signed(dqnVsGreedy.success_diff_points)} points over greedy on the same table`
+    : `Learning ${ciVerb(dqnVsGreedy)} greedy on the same table`;
   const items = [
-    `Routing by meaning works without a server: at ${num(big)} agents greedy delivers ${pct(gr("success_rate"))} and the DQN ${pct(get("scale", "agentroute", "success_rate", big))} (ceiling ${pct(gr("oracle_best"))}), in ${ms(gr("time_ms"))} against ${ms(rg("time_ms"))} via a registry`,
-    `It is not free: a two-tier S-FIB costs ${kb(gr("ctrl_kB_per_s"))}/s, one row per agent (SPFR-style) ${kb(sp("ctrl_kB_per_s"))}/s for ${signed((sp("success_rate") - gr("success_rate")) * 100)} points, a registry only ${kb(rg("ctrl_kB_per_s"))}/s`,
-    `Learning: the DQN ${load} load-aware greedy at ${num(big)} agents (${pairTxt(dqnVsLoad)}). Matching quality, not routing, sets the ceiling`,
+    `Routing by meaning works without a server: ${pct(ar("success_rate"))} at ${num(big)} agents (ceiling ${pct(gr("oracle_best"))}), ${ms(gr("time_ms"))} against ${ms(rg("time_ms"))} via a registry`,
+    `It is not free: the S-FIB costs ${kb(gr("ctrl_kB_per_s"))}/s of control traffic, a registry ${kb(rg("ctrl_kB_per_s"))}/s`,
+    `${learn}. Matching quality, not routing, sets the ceiling`,
   ];
   items.forEach((t, i) => {
     circleNum(s, i + 1, 0.8, 3.45 + i * 0.85, "2A78D6", 0.5);
@@ -659,12 +687,12 @@ videoSlide("agentroute_demo", "Demo: a request routed by meaning",
   });
   s.addText("Future work: agent-side verification · learned capability representations · signed advertisements · UDP overlay prototype", {
     x: 0.8, y: 6.2, w: 11.7, h: 0.5, isTextBox: true, margin: 0, fontSize: 14, color: LIGHT });
-  s.addNotes(`Özetle üç şey söyleyebiliriz. Birincisi, anlama göre yönlendirme merkezi sunucu olmadan çalışıyor. İkincisi, bedava değil: registry bayt olarak her zaman daha ucuz, trafik en önemli ölçütse registry seçilmeli. Üçüncüsü, öğrenmenin katkısı küçük ama ölçülebilir: ${tn(big)} agent'ta aynı tabloda DQN, greedy'den ${tabs(dqnVsGreedy)} puan, yük duyarlı kuraldan ${tabs(dqnVsLoad)} puan iyi, tam tablolu SPFR tarzı kuralın ise ${tabs(dqnVsSpfr)} puan gerisinde. Gecikmede anlamlı bir fark yok. Asıl tavanı yönlendirme değil, anlamsal eşleşme belirliyor. Gerçekçi radyo modeliyle başarı 8 ila 21 puan düşüyor, ayrıntısı raporda. Teşekkür ederiz, sorularınızı alalım.`);
+  s.addNotes(`Özetle üç şey söyleyebiliriz. Birincisi, anlama göre yönlendirme merkezi sunucu olmadan çalışıyor. İkincisi, bedava değil: registry bayt olarak her zaman daha ucuz, trafik en önemli ölçütse registry seçilmeli. Üçüncüsü, öğrenmenin katkısı küçük ama ölçülebilir: ${tn(big)} agent'ta aynı tabloda DQN, greedy'den ${tabs(dqnVsGreedy)} puan, yük duyarlı kuraldan ${tabs(dqnVsLoad)} puan iyi, tam tablolu SPFR tarzı kuralın ise ${tabs(dqnVsSpfr)} puan gerisinde. Asıl tavanı yönlendirme değil, anlamsal eşleşme belirliyor. Teşekkür ederiz, sorularınızı alalım.`);
 }
 
 // 20 ---- backup: ablations
+pres.addSection({ title: "Backup" });
 if (S.ablation_summary && S.ablation_header) {
-  pres.addSection({ title: "Backup" });
   const s = content("Backup", "Backup: S-FIB content and header size", "goktepe",
     `Yedek slayt. Solda tablo içeriğinin başarıya etkisi, sağda intent başlığının 1.536 bayttan (float32) 388 bayta (int8) ya da 48 bayta (binary) sıkıştırılması var.`);
   const ORDER = { ablation_summary: ["mean", "k=8, no tier", "k=4", "k=8", "k=16", "exact"], ablation_header: ["float32", "int8", "binary"] };
@@ -682,6 +710,19 @@ if (S.ablation_summary && S.ablation_header) {
   hdr.forEach((h) => { h.labels = h.labels.map((v) => names[v] || v); });
   s.addChart(pres.charts.BAR, hdr, chartOpts({ x: 6.75, y: 1.45, w: 6.0, h: 5.05, colors: [M.agentroute.color, M.greedy.color],
     fmt: '0"%"', min: 0, title: "Intent header encoding", yTitle: "success", extra: { barDir: "col", barGapWidthPct: 60 } }));
+}
+
+// 21 ---- backup: the selected example video
+{
+  const f = path.join(FIG, "greedy_vs_agentroute.json");
+  if (fs.existsSync(f)) {
+    const c = JSON.parse(fs.readFileSync(f, "utf8"));
+    const say = (o) => (o.type === "deliver"
+      ? `${o.hops} hop'ta ve ${td(o.time_ms)} ms içinde ${o.agent_class} agent'ına teslim ediliyor`
+      : `${o.hops} hop sonra başarısız oluyor (${o.reason.replace("_", " ")})`);
+    videoSlide("greedy_vs_agentroute", "Backup: one selected example, greedy vs learned",
+      `Yedek slayt. Şunu açıkça söyleyelim: bu tek bir seçilmiş örnek, ortalama değil. Turuncu halkalar yoğun router'lar. "${c.text}" isteği greedy ile ${say(c.greedy)}, öğrenen politikayla ${say(c.agentroute)}.`, "Backup");
+  }
 }
 
 // ---------------------------------------------------------------- write + theme
