@@ -8,9 +8,9 @@ Toplam ~15 dakika, kişi başı en fazla 5 dakika. Slaytlar İngilizce, konuşma
 
 | Slaytlar | Konuşmacı | İçerik |
 |---|---|---|
-| 1–5 | Ömer | Başlık, "nerede" vs "kim yapabilir", iki klasik çözüm ve mobilite, ilgili çalışmalar, tek resimde AgentRoute |
-| 6–10 | Bekir Emre | Capability address, S-FIB, duyuru yarıçapı R, mobilite ve handover maliyeti, sorun çoğunlukla eşleşmede (kapanış sorusu) |
-| 11–19 | Bekir Göktepe | DQN, doğrulama eğrisi ve eşleştirilmiş test farkları, deney düzeni, ölçek, istek hızı, dayanıklılık, demo videosu, Sionna radyo sonucu, takeaways |
+| 1–6 | Ömer | Başlık, "nerede" vs "kim yapabilir", iki klasik çözüm ve mobilite, ilgili çalışmalar, tek resimde AgentRoute, demo videosu |
+| 7–11 | Bekir Emre | Capability address, S-FIB, duyuru yarıçapı R, mobilite ve handover maliyeti, sorun çoğunlukla eşleşmede (kapanış sorusu) |
+| 12–19 | Bekir Göktepe | DQN, doğrulama eğrisi ve eşleştirilmiş test farkları, deney düzeni, ölçek, istek hızı, dayanıklılık, Sionna radyo sonucu, takeaways |
 | 20–21 | (yedek) | S-FIB içeriği ve header boyutu; seçilmiş tek istek videosu (greedy vs DQN), soru gelirse |
 
 **Önemli:** Çekirdek modüllerin v2 hali yapay zeka aracıyla yazıldı (`docs/KIM_NE_YAPTI.md`). Herkes kendi modülünün v2 halini okuyup anlatabilmeli. Hoca sorarsa bunu saklamayın, ama kodu da açıklayabilin.
@@ -60,7 +60,7 @@ Toplam ~15 dakika, kişi başı en fazla 5 dakika. Slaytlar İngilizce, konuşma
   1. Registry bayt olarak her zaman daha ucuz.
   2. Mobilite başarıyı değil maliyeti etkiliyor, hiçbir yöntemin başarısı hızla değişmiyor.
   3. Asıl tavan yönlendirme değil eşleşme.
-- Video: `agentroute_demo.mp4` (duyuru → istek → handover). `greedy_vs_agentroute.mp4` yedek slaytta (**seçilmiş** tek istek, ortalama değil. Gösterirseniz bunu sözlü de söyleyin.)
+- Video: `agentroute_demo.mp4` (duyuru → istek → handover) artık 6. slaytta, Ömer gösteriyor. `greedy_vs_agentroute.mp4` yedek slaytta (**seçilmiş** tek istek, ortalama değil. Gösterirseniz bunu sözlü de söyleyin.)
 - **Radyo slaytı (18):** Sionna yalnızca radyo hop'unu hesaplıyor. Başarı 8–21 puan düşüyor, en çok registry. Ayrıntı için aşağıdaki 15. soru.
 - Kapanış: tek cümle + gelecek iş.
 

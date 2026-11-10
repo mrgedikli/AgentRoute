@@ -33,7 +33,7 @@ const M = {
   agentroute: { name: "AgentRoute (DQN)", color: "2A78D6" },
   agentroute_gnn: { name: "AgentRoute (GNN)", color: "EB6834" },
   greedy: { name: "Greedy semantic", color: "1BAF7A" },
-  greedy_load: { name: "Load-aware greedy", color: "0F8A8A" },
+  greedy_load: { name: "Load-aware greedy", color: "C2410C" },
   spfr: { name: "SPFR-style", color: "6250D6" },
   flooding: { name: "Flooding", color: "EDA100" },
   registry: { name: "Central registry", color: "E87BA4" },
@@ -174,18 +174,26 @@ function chartOpts(o) {
   };
 }
 
+// With o.focus, only those methods keep their colour; the others are drawn first, in grey.
+const REST = "CFCEC6";
+function focusOrder(methods, focus) {
+  if (!focus) return methods;
+  return [...methods.filter((m) => !focus.includes(m)), ...methods.filter((m) => focus.includes(m))];
+}
+const lineColor = (m, focus) => (!focus || focus.includes(m) ? M[m].color : REST);
+
 // methods x values -> line chart (null values drop the whole series)
 function methodLines(s, exp, metric, methods, o) {
   const e = S[exp];
   const labels = e.values.map((v) => (o.labelFn ? o.labelFn(v) : String(v)));
   const series = [];
   const colors = [];
-  for (const m of methods) {
+  for (const m of focusOrder(methods, o.focus)) {
     if (!e.methods[m]) continue;
     const vals = e.methods[m][metric];
     if (vals.some((v) => v == null)) continue;
     series.push({ name: M[m].name, labels, values: vals.map((v) => (o.scale ? v * o.scale : v)) });
-    colors.push(M[m].color);
+    colors.push(lineColor(m, o.focus));
   }
   s.addChart(pres.charts.LINE, series, chartOpts({ ...o, colors }));
 }
@@ -235,10 +243,10 @@ function successWithCeiling(s, exp, methods, o) {
   const labels = e.values.map((v) => (o.labelFn ? o.labelFn(v) : String(v)));
   const series = [];
   const colors = [];
-  for (const m of methods) {
+  for (const m of focusOrder(methods, o.focus)) {
     if (!e.methods[m]) continue;
     series.push({ name: M[m].name, labels, values: e.methods[m].success_rate.map((v) => v * 100) });
-    colors.push(M[m].color);
+    colors.push(lineColor(m, o.focus));
   }
   series.push({ name: "Matching ceiling", labels, values: e.methods[methods[0]].oracle_best.map((v) => v * 100) });
   colors.push("0B0B0B");
@@ -333,7 +341,7 @@ pres.addSection({ title: "Problem and big picture" });
 // 5 ---- one picture
 {
   const s = content("Problem and big picture", "AgentRoute in one picture", "omer",
-    `Sistemi tek resimde görelim. İki şey oluyor. Kesikli oklar: agent'lar yeteneklerini duyuruyor ve her router kendi tablosunu dolduruyor. Bu tabloya semantik tablo, kısaca S-FIB diyoruz. Normal bir router "şu adres aralığı şu kapıdan" der. Bizimki "şu komşumun arkasında şu tür yetenekler var" der. Düz oklar: görev paketi. Pakette hedef adres yok. Onun yerine isteğin anlamını temsil eden bir vektör var. Örneğin "arabaları bul" isteği telefondan baz istasyonuna geliyor. Router bu vektörü tablosuyla karşılaştırıyor. Yakında uygun bir agent varsa ona teslim ediyor, yoksa en uygun komşuya gönderiyor. Bu, yetenekli bir agent'a ulaşana kadar her hop'ta tekrarlanıyor. Alttaki kutu bir router'ın içi. Router benzerliğin yanında kuyruk doluluğuna, link kalitesine, handover'a ve kalan hop sayısına da bakıyor. Kararı öğrenen bir model veriyor. Önemli nokta: her router kararı yalnızca kendi yerel bilgisiyle veriyor, merkezde kimse yok. Şimdi Bekir Emre adreslemeyi ve tabloyu anlatacak.`);
+    `Sistemi tek resimde görelim. İki şey oluyor. Kesikli oklar: agent'lar yeteneklerini duyuruyor ve her router kendi tablosunu dolduruyor. Bu tabloya semantik tablo, kısaca S-FIB diyoruz. Normal bir router "şu adres aralığı şu kapıdan" der. Bizimki "şu komşumun arkasında şu tür yetenekler var" der. Düz oklar: görev paketi. Pakette hedef adres yok. Onun yerine isteğin anlamını temsil eden bir vektör var. Örneğin "arabaları bul" isteği telefondan baz istasyonuna geliyor. Router bu vektörü tablosuyla karşılaştırıyor. Yakında uygun bir agent varsa ona teslim ediyor, yoksa en uygun komşuya gönderiyor. Bu, yetenekli bir agent'a ulaşana kadar her hop'ta tekrarlanıyor. Alttaki kutu bir router'ın içi. Router benzerliğin yanında kuyruk doluluğuna, link kalitesine, handover'a ve kalan hop sayısına da bakıyor. Kararı öğrenen bir model veriyor. Önemli nokta: her router kararı yalnızca kendi yerel bilgisiyle veriyor, merkezde kimse yok.`);
   const nodes = [
     { t: "Requesting agent", b: "on a mobile UE,\nmoves between cells", hl: false },
     { t: "gNB + edge node", b: "AgentRoute node\nS-FIB + policy", hl: true },
@@ -369,7 +377,12 @@ pres.addSection({ title: "Problem and big picture" });
   });
 }
 
-// 6 ---- capability address
+// 6 ---- demo video, right after the overview
+videoSlide("agentroute_demo", "Demo: a request routed by meaning",
+  `Bunu çalışırken görelim. Bu kayıt gerçek bir simülasyon logundan üretildi. Önce duyurular tabloları dolduruyor, sonra bir istek hop hop uygun agent'a gidiyor, sonra bir telefon hücre değiştiriyor ve sadece yakındaki girdiler güncelleniyor. Şimdi Bekir Emre adreslemeyi ve tabloyu anlatacak.`,
+  "Problem and big picture", "omer");
+
+// 7 ---- capability address
 pres.addSection({ title: "Addressing and S-FIB" });
 {
   const encoders = JSON.parse(fs.readFileSync(path.join(ROOT, "results", "encoders.json"), "utf8"));
@@ -399,7 +412,7 @@ pres.addSection({ title: "Addressing and S-FIB" });
     6.95, 6.1, 5.8, 0.4, { fontSize: 13, color: INK2, align: "center" });
 }
 
-// 7 ---- S-FIB
+// 8 ---- S-FIB
 {
   const v = (name, metric) => get("ablation_summary", "greedy", metric, name);
   const s = content("Addressing and S-FIB", "The S-FIB: what lies behind each neighbour", "emre",
@@ -425,7 +438,7 @@ pres.addSection({ title: "Addressing and S-FIB" });
   stat(s, pct(v("exact", "success_rate")), `one row per agent · ${kb(v("exact", "ctrl_kB_per_s"))}/s`, 5.6, 5.05, 2.3, M.greedy.color);
 }
 
-// 8 ---- radius
+// 9 ---- radius
 {
   const r = S.radius.values;
   const methods = ["agentroute", "greedy", "greedy_load"];
@@ -438,7 +451,7 @@ pres.addSection({ title: "Addressing and S-FIB" });
     title: "Control traffic (kB/s)", xTitle: "advertisement radius R (hops)", yTitle: "kB/s" }));
 }
 
-// 9 ---- mobility
+// 10 ---- mobility
 {
   const sp_ = S.mobility.values;
   const hi = sp_[sp_.length - 1];
@@ -451,7 +464,7 @@ pres.addSection({ title: "Addressing and S-FIB" });
   const rlo = get("mobility", "registry3", "ctrl_kB_per_s", 0.0);
   const rup = get("mobility", "registry3", "ctrl_kB_per_s", hi);
   const s = content("Addressing and S-FIB", "Mobility costs messages, not success", "emre",
-    `Mobilite de tam bu tabloyla ilgili. Bir telefon hücre değiştirince eski gNB onu siliyor, yeni gNB R hop içinde duyuruyor. Bir router bu güncellemeyi ancak kendi özetlerinden biri gerçekten değişiyorsa ileri aktarıyor, yani bütün ağ yeniden flood edilmiyor. ${tn(n)} agent'ta handover başına yaklaşık ${Math.round(top.msgs_per_handover)} mesaj gidiyor. Handover trafiği saniyede ${tk(top.handover_kB_per_s)}, periyodik yenileme ise ${tk(top.refresh_kB_per_s)}. Başarı ise hıza neredeyse hiç bağlı değil. Saniyede ${hi} metre hızda, 150 metrelik küçük hücrelerde bile greedy ${tp(get("mobility_small", "greedy", "success_rate", hi))}, üç replikalı registry ${tp(get("mobility_small", "registry3", "success_rate", hi))}, çünkü bir agent sadece 50 milisaniye kesinti yaşıyor. Yani modelimizde mobilite bir ulaşılabilirlik değil, maliyet sorunu. 500 metrelik hücrelerde, durağandan saniyede ${hi} metreye çıkınca S-FIB'in kontrol trafiği ${tk(lo)} değerinden ${tk(up)} değerine, üç replikalı registry'ninki ${tk(rlo)} değerinden ${tk(rup)} değerine çıkıyor.`);
+    `Mobilite de tam bu tabloyla ilgili. Bir telefon hücre değiştirince eski gNB onu siliyor, yeni gNB R hop içinde duyuruyor. Bir router bu güncellemeyi ancak kendi özetlerinden biri gerçekten değişiyorsa ileri aktarıyor, yani bütün ağ yeniden flood edilmiyor. Handover başına yaklaşık ${Math.round(top.msgs_per_handover)} mesaj gidiyor. Sağdaki grafikte renkli çizgiler greedy, DQN ve üç replikalı registry, gri olanlar diğer yöntemler. Çizgiler düz: saniyede ${hi} metre hızda, 150 metrelik küçük hücrelerde bile başarı değişmiyor, çünkü bir agent sadece 50 milisaniye kesinti yaşıyor. Yani modelimizde mobilite bir ulaşılabilirlik değil, maliyet sorunu: durağandan bu hıza çıkınca S-FIB'in kontrol trafiği ${tk(lo)} değerinden ${tk(up)} değerine çıkıyor.`);
   box(s, 0.6, 1.5, 4.6, 5.0, PANEL);
   text(s, "Incremental S-FIB update", 0.9, 1.7, 4.0, 0.45, { fontSize: 18, bold: true, fontFace: "Cambria" });
   circleNum(s, 1, 0.9, 2.35, CRIT, 0.42);
@@ -460,13 +473,14 @@ pres.addSection({ title: "Addressing and S-FIB" });
   text(s, "New cell announces it within R hops", 1.45, 3.08, 3.6, 0.6, { fontSize: 14 });
   circleNum(s, 3, 0.9, 3.75, "6B6A66", 0.42);
   text(s, "A router forwards it only if a summary moves", 1.45, 3.78, 3.6, 0.6, { fontSize: 14 });
-  stat(s, String(top.msgs_per_handover), `messages per handover at ${num(n)} agents`, 0.9, 4.6, 2.0, "1C5CAB");
-  stat(s, `${kb(top.handover_kB_per_s)}/s`, `handovers, next to ${kb(top.refresh_kB_per_s)}/s of refresh`, 3.0, 4.6, 2.1, INK2);
-  successWithCeiling(s, "mobility_small", ALL, { x: 5.45, y: 1.45, w: 7.3, h: 5.05,
+  stat(s, String(Math.round(top.msgs_per_handover)), `messages per handover at ${num(n)} agents`, 0.9, 4.6, 2.0, "1C5CAB");
+  stat(s, kb(top.handover_kB_per_s), `per second for handovers, next to ${kb(top.refresh_kB_per_s)}/s of refresh`, 3.0, 4.6, 2.1, INK2);
+  successWithCeiling(s, "mobility_small", ALL.filter((m) => m !== "chord"), { x: 5.45, y: 1.45, w: 7.3, h: 5.05, min: 30,
+    focus: ["agentroute", "greedy", "registry3"],
     title: `Success vs speed (${num(1000)} agents, 150 m cells)`, xTitle: "mobile agent speed (m/s)" });
 }
 
-// 10 ---- what limits success
+// 11 ---- what limits success
 {
   const d = S.scale.drops || {};
   const oracle = gr("oracle_best", mid);
@@ -493,7 +507,7 @@ pres.addSection({ title: "Addressing and S-FIB" });
     0.9, 5.7, 11.6, 0.65, { fontSize: 20, bold: true, fontFace: "Cambria", color: "1C5CAB", valign: "middle" });
 }
 
-// 11 ---- DQN
+// 12 ---- DQN
 pres.addSection({ title: "Learning and evaluation" });
 {
   const s = content("Learning and evaluation", "One shared DQN: deliver here, or forward where?", "goktepe",
@@ -527,7 +541,7 @@ pres.addSection({ title: "Learning and evaluation" });
   ], 5.75, 5.6, 6.9, 0.95, { fontSize: 13, color: INK });
 }
 
-// 12 ---- learning curve + paired test differences
+// 13 ---- learning curve + paired test differences
 if (train) {
   const bestRet = train.val_return[bestIdx];
   const v = verb(bestRet, Math.max(train.greedy_val_return, train.load_val_return), 0.01);
@@ -550,11 +564,14 @@ if (train) {
     values: scenarios.map((x) => matched[x][k].success_diff_points) })),
   chartOpts({ x: 6.75, y: 1.45, w: 6.0, h: 4.35, colors: pairs.map((x) => x[2]), title: "Test: paired success difference (points)",
     yTitle: "points", extra: { barDir: "col", barGapWidthPct: 60, barGrouping: "clustered" } }));
-  text(s, `${k1.replace(", load 1", "")}: ${pairTxt(g1)} vs greedy · ${pairTxt(l1)} vs load-aware · ${pairTxt(s1)} vs SPFR-style`,
-    6.75, 5.85, 6.0, 0.65, { fontSize: 11, color: INK2, align: "center" });
+  const mn = (x) => x.toFixed(1).replace("-", "−");
+  const ci = (p) => `${signed(p.success_diff_points)} (${mn(p.success_diff_ci95[0])} to ${mn(p.success_diff_ci95[1])})`;
+  text(s, [{ text: `${num(1000)} agents, paired difference in points with 95% CI`, options: { breakLine: true } },
+    { text: `${ci(g1)} vs greedy · ${ci(l1)} vs load-aware · ${ci(s1)} vs SPFR-style` }],
+  6.75, 5.85, 6.0, 0.65, { fontSize: 11, color: INK2, align: "center" });
 }
 
-// 13 ---- setup
+// 14 ---- setup
 {
   const s = content("Learning and evaluation", "Evaluation setup", "goktepe",
     `Sonuçlar SimPy ile yazdığımız simülatörden geliyor: hücreler, core ağ ve cloud, en fazla 450 router. İstekler eğitimde hiç görülmemiş 150 cümle. Bilerek güçlü rakipler ekledik: yük duyarlı kural, SPFR tarzı kural, üç replikalı registry ve semantik DHT. Chord tanım gereği hiçbir şey bulamıyor, onu sadece referans olarak tutuyoruz. Her nokta 10 seed'in ortalaması.`);
@@ -575,21 +592,25 @@ if (train) {
   });
 }
 
-// 14 ---- scale
+// 15 ---- scale
 {
-  const s = content("Learning and evaluation", `Scaling to ${num(big)} agents`, "goktepe",
-    `Solda başarı var. ${tn(big)} agent'ta eşleşme tavanı ${tp(gr("oracle_best"))}, DQN ${tp(ar("success_rate"))}, greedy ${tp(gr("success_rate"))}, SPFR tarzı ${tp(sp("success_rate"))}, flooding ${tp(fl("success_rate"))}, merkezi registry ${tp(rg("success_rate"))}. Dikkat: başarı ekseni %30'dan başlıyor. Sağda kontrol trafiği var. Alttaki satırda süreler: bu ölçekte yönlendirme ${ms(gr("time_ms"))}, registry ${ms(rg("time_ms"))}, flooding ${ms(fl("time_ms"))}.`);
+  const holds = ar("success_rate") >= ar("success_rate", mid) - 0.01;
+  const s = content("Learning and evaluation",
+    holds ? `Success holds up to ${num(big)} agents; control traffic grows` : `Scaling to ${num(big)} agents`, "goktepe",
+    `Solda başarı var, eksen %30'dan başlıyor. Renkli çizgiler bizim yöntem, greedy ve merkezi registry, gri olanlar diğer rakipler, siyah çizgi eşleşme tavanı. ${tn(big)} agent'ta DQN ${tp(ar("success_rate"))}, tavan ${tp(gr("oracle_best"))}${rg("success_rate") < ar("success_rate") ? "; registry bu ölçekte geride kalıyor" : ""}. Sağda kontrol trafiği var: ağ büyüdükçe hepsinde artıyor, en pahalısı her agent için satır tutan SPFR tarzı kural, en ucuzu registry. Süreler alttaki satırda.`);
   const lab = (x) => (x >= 1000 ? `${x / 1000}K` : String(x));
   const drawn = ALL.filter((m) => m !== "chord");     // Chord is 0% everywhere and would flatten the axis
-  successWithCeiling(s, "scale", drawn, { x: 0.6, y: 1.45, w: 6.0, h: 4.5, min: 30, labelFn: lab, title: "Discovery success", xTitle: "number of agents" });
+  successWithCeiling(s, "scale", drawn, { x: 0.6, y: 1.45, w: 6.0, h: 4.5, min: 30, labelFn: lab, title: "Discovery success", xTitle: "number of agents",
+    focus: ["agentroute", "greedy", "registry"] });
   methodLines(s, "scale", "ctrl_kB_per_s", drawn.filter((m) => m !== "flooding"), { x: 6.75, y: 1.45, w: 6.0, h: 4.5, log: true, labelFn: lab,
-    title: "Control traffic, whole network (kB/s, log)", xTitle: "number of agents", yTitle: "kB/s", legend: false });
+    title: "Control traffic, whole network (kB/s, log)", xTitle: "number of agents", yTitle: "kB/s",
+    focus: ["agentroute", "spfr", "registry"] });
   box(s, 0.6, 6.05, 12.13, 0.6, PANEL);
   text(s, `Time per request at ${num(big)} agents: forwarding ${ms(gr("time_ms"))} · registry ${ms(rg("time_ms"))} · flooding ${ms(fl("time_ms"))}     (Chord, exact match: 0%, not drawn)`,
     0.85, 6.05, 11.7, 0.6, { fontSize: 14, color: INK, valign: "middle" });
 }
 
-// 15 ---- traffic vs request rate
+// 16 ---- traffic vs request rate
 {
   const e = S.rate;
   const labels = e.values.map(String);
@@ -608,7 +629,7 @@ if (train) {
     "Registry: cheapest bytes, slower requests"], 9.15, 2.4, 3.4, 3.9, { fontSize: 14 });
 }
 
-// 16 ---- robustness
+// 17 ---- robustness
 {
   const fv = S.failure.values;
   const fmax = fv[fv.length - 1];
@@ -617,24 +638,27 @@ if (train) {
   const heavy = scen(`1000 agents, load 4`, "agentroute vs greedy_load");
   const rb = S.failure.registry_by_server[String(fmax)];
   const regCase = `${pct(rb.up)} when its server survives (${rb.n_up} of ${rb.n_up + rb.n_down} seeds) and ${pct(rb.down)} when it does not`;
-  const s = content("Learning and evaluation", "Robustness: failures and load", "goktepe",
-    `Router'ların ${tp(fmax)} kadarı düştüğünde greedy ${tp(get("failure", "greedy", "success_rate", fmax))}, üç replikalı registry ${tp(get("failure", "registry3", "success_rate", fmax))} başarı veriyor. Tek sunuculu registry, sunucu ayaktaysa ${tp(rb.up)}, düşerse ${tp(rb.down)}. Onun çizgisi düzgün inmiyor, çünkü ortalama, sunucunun on denemenin kaçında düştüğüne bağlı. Replika bunu büyük ölçüde çözüyor. Sağda yük artışı var: en yüksek yükte DQN ${tp(get("load", "agentroute", "success_rate", lmax))}, greedy ${tp(get("load", "greedy", "success_rate", lmax))}, flooding ${tp(get("load", "flooding", "success_rate", lmax))}.`);
-  successWithCeiling(s, "failure", ALL, { x: 0.6, y: 1.45, w: 6.0, h: 5.05,
+  const arDrop = Math.max(get("failure", "agentroute", "success_rate", fv[0]) - get("failure", "agentroute", "success_rate", fmax),
+    get("load", "agentroute", "success_rate", lv[0]) - get("load", "agentroute", "success_rate", lmax));
+  const s = content("Learning and evaluation",
+    arDrop < 0.05 ? "Forwarding survives router failures and load" : "Robustness: failures and load", "goktepe",
+    `Solda router'lar düştükçe başarı var, eksenler %30'dan başlıyor. Yönlendirme neredeyse etkilenmiyor: router'ların ${tp(fmax)} kadarı düşse bile DQN ${tp(get("failure", "agentroute", "success_rate", fmax))} başarı veriyor. Pembe çizgi tek sunuculu registry: sunucusunun düştüğü denemelerde başarısı ${tp(rb.down)} değerine iniyor, çizgisi bu yüzden düzensiz. Üç replika bunu büyük ölçüde çözüyor. Sağda yük artıyor: DQN her yükte greedy'nin önünde kalıyor.`);
+  const drawn = ALL.filter((m) => m !== "chord");     // as on the scaling slide: Chord is 0% everywhere
+  const focus = ["agentroute", "greedy", "registry", "registry3"];
+  successWithCeiling(s, "failure", drawn, { x: 0.6, y: 1.45, w: 6.0, h: 5.05, min: 30, focus,
     labelFn: (x) => `${Math.round(x * 100)}%`, title: "Success vs failed routers", xTitle: "failed routers" });
-  successWithCeiling(s, "load", ALL, { x: 6.75, y: 1.45, w: 6.0, h: 5.05, title: "Success vs network load", xTitle: "load factor", legend: false });
+  successWithCeiling(s, "load", drawn, { x: 6.75, y: 1.45, w: 6.0, h: 5.05, min: 30, focus, title: "Success vs network load", xTitle: "load factor", legend: false });
 }
 
-// 17 ---- demo video
-function videoSlide(file, title, notes, section = "Learning and evaluation") {
+// video slides
+function videoSlide(file, title, notes, section = "Learning and evaluation", speaker = "goktepe") {
   const video = path.join(FIG, `${file}.mp4`);
   const poster = path.join(FIG, `${file}_poster.png`);
   if (!fs.existsSync(video)) return;
-  const s = content(section, title, "goktepe", notes);
+  const s = content(section, title, speaker, notes);
   const cover = fs.existsSync(poster) ? `data:image/png;base64,${fs.readFileSync(poster).toString("base64")}` : undefined;
   s.addMedia({ type: "video", path: video, x: 1.0, y: 1.4, w: 11.33, h: 5.35, ...(cover ? { cover } : {}) });
 }
-videoSlide("agentroute_demo", "Demo: a request routed by meaning",
-  `Bu kayıt gerçek bir simülasyon logundan üretildi. Önce duyurular tabloları dolduruyor, sonra bir istek hop hop uygun agent'a gidiyor, sonra bir telefon hücre değiştiriyor ve sadece yakındaki girdiler güncelleniyor.`);
 // 18 ---- realistic radio (Sionna)
 {
   const f = path.join(ROOT, "results", "raw", "radio_compare.csv");
@@ -672,6 +696,8 @@ videoSlide("agentroute_demo", "Demo: a request routed by meaning",
 {
   const s = pres.addSlide({ masterName: "TITLE_DARK", sectionTitle: "Learning and evaluation" });
   s.addText("Takeaways", { placeholder: "title" });
+  s.addText(" ", { placeholder: "body" });     // otherwise PowerPoint shows the empty placeholder prompts
+  s.addText(" ", { placeholder: "team" });
   const learn = ciVerb(dqnVsGreedy) === "beats"
     ? `Learning adds ${signed(dqnVsGreedy.success_diff_points)} points over greedy on the same table`
     : `Learning ${ciVerb(dqnVsGreedy)} greedy on the same table`;
@@ -736,7 +762,58 @@ async function writeTheme(file) {
   }
   xml = xml.replace(/<a:clrScheme name="[^"]*"/, `<a:clrScheme name="${THEME.name}"`);
   zip.file(part, xml);
+  await fixSlides(zip);
   fs.writeFileSync(file, await zip.generateAsync({ type: "nodebuffer", compression: "DEFLATE" }));
+}
+
+// Length of an .mp4 in ms, read from its "mvhd" box.
+function mp4DurationMs(file) {
+  const b = fs.readFileSync(file);
+  const i = b.indexOf("mvhd");
+  if (i < 0) return 20000;
+  const v1 = b[i + 4] === 1;
+  const scale = b.readUInt32BE(i + (v1 ? 24 : 16));
+  const dur = v1 ? Number(b.readBigUInt64BE(i + 28)) : b.readUInt32BE(i + 20);
+  return Math.round((dur / scale) * 1000);
+}
+
+// pptxgenjs gives some shapes the same id and never sets a video to play on its own.
+// (1) renumber the shapes of every slide, (2) add the timing PowerPoint writes for
+// "Playback > Start: Automatically", so the video starts when its slide is shown.
+async function fixSlides(zip) {
+  const slides = Object.keys(zip.files).filter((n) => /^ppt\/slides\/slide\d+\.xml$/.test(n));
+  for (const part of slides) {
+    let xml = await zip.file(part).async("string");
+    let next = 1;
+    xml = xml.replace(/<p:cNvPr id="\d+"/g, () => `<p:cNvPr id="${next++}"`);
+
+    const at = xml.indexOf("<a:videoFile r:link=");
+    if (at >= 0 && !xml.includes("<p:timing>")) {
+      const before = xml.slice(0, at);
+      const spid = before.slice(before.lastIndexOf("<p:cNvPr id=")).match(/id="(\d+)"/)[1];   // the video's own shape
+      const rid = xml.slice(at).match(/r:link="(rId\d+)"/)[1];
+      const rels = await zip.file(part.replace("slides/", "slides/_rels/") + ".rels").async("string");
+      const target = rels.match(new RegExp(`Id="${rid}"[^>]*Target="\\.\\./media/([^"]+)"`));
+      let ms = 20000;
+      if (target) {
+        const tmp = path.join(require("os").tmpdir(), target[1]);
+        fs.writeFileSync(tmp, await zip.file(`ppt/media/${target[1]}`).async("nodebuffer"));
+        ms = mp4DurationMs(tmp);
+        fs.unlinkSync(tmp);
+      }
+      const timing =
+        `<p:timing><p:tnLst><p:par><p:cTn id="1" dur="indefinite" restart="never" nodeType="tmRoot"><p:childTnLst>` +
+        `<p:par><p:cTn id="2" fill="hold"><p:stCondLst><p:cond delay="indefinite"/><p:cond evt="onBegin" delay="0"><p:tn val="2"/></p:cond></p:stCondLst><p:childTnLst>` +
+        `<p:par><p:cTn id="3" fill="hold"><p:stCondLst><p:cond delay="0"/></p:stCondLst><p:childTnLst>` +
+        `<p:par><p:cTn id="4" presetID="1" presetClass="mediacall" presetSubtype="0" fill="hold" nodeType="afterEffect"><p:stCondLst><p:cond delay="0"/></p:stCondLst><p:childTnLst>` +
+        `<p:cmd type="call" cmd="playFrom(0.0)"><p:cBhvr><p:cTn id="5" dur="${ms}" fill="hold"/><p:tgtEl><p:spTgt spid="${spid}"/></p:tgtEl></p:cBhvr></p:cmd>` +
+        `</p:childTnLst></p:cTn></p:par></p:childTnLst></p:cTn></p:par></p:childTnLst></p:cTn></p:par>` +
+        `<p:video><p:cMediaNode vol="80000"><p:cTn id="6" fill="hold" display="0"><p:stCondLst><p:cond delay="indefinite"/></p:stCondLst></p:cTn><p:tgtEl><p:spTgt spid="${spid}"/></p:tgtEl></p:cMediaNode></p:video>` +
+        `</p:childTnLst></p:cTn></p:par></p:tnLst></p:timing>`;
+      xml = xml.replace("</p:clrMapOvr></p:sld>", `</p:clrMapOvr>${timing}</p:sld>`);
+    }
+    zip.file(part, xml);
+  }
 }
 
 pres.writeFile({ fileName: OUT }).then(async () => {
