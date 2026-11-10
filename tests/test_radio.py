@@ -3,7 +3,6 @@
 Written with AI assistance (Claude).
 """
 import json
-from pathlib import Path
 
 import numpy as np
 
@@ -12,7 +11,6 @@ from agentroute.radio import RadioLUT
 from agentroute.sim.simulator import Simulator
 
 LUT = ROOT / "results" / "radio_lut.npz"
-REFERENCE = Path(__file__).parent / "data" / "constant_radio_reference.json"
 
 
 def small_cfg(model):
@@ -46,12 +44,25 @@ def test_lut_sampling_matches_the_table():
         assert all(1 <= k <= lut.max_tx for k, _ in outcomes)
 
 
-def test_constant_model_reproduces_the_previous_results_exactly():
-    reference = json.loads(REFERENCE.read_text())
-    for key, expected in reference.items():
-        method, seed = key.rsplit("-", 1)
-        got = Simulator(small_cfg("constant"), method, seed=int(seed)).run()
-        assert json.loads(json.dumps(got, sort_keys=True, default=str)) == expected
+def _fixed_radio(self, agent=None):
+    """The radio hop as it was before the Sionna model existed: fixed delay and loss."""
+    topo = self.cfg["topology"]
+    yield self.env.timeout(topo["delay_ms"]["radio"] / 1000.0)
+    if self.rng_net.random() < topo["loss"]["radio"]:
+        return "link"
+    return None
+
+
+def test_constant_model_is_identical_to_the_original_fixed_radio(monkeypatch):
+    """Compared on the same machine, so the check does not depend on platform-specific float results."""
+    methods = ("agentroute", "agentroute_gnn", "greedy", "greedy_load", "spfr", "flooding",
+               "registry", "registry3", "chord", "sdht")
+    current = {m: json.loads(json.dumps(Simulator(small_cfg("constant"), m, seed=1).run(), default=str))
+               for m in methods}
+    monkeypatch.setattr(Simulator, "radio", _fixed_radio)
+    for m in methods:
+        original = json.loads(json.dumps(Simulator(small_cfg("constant"), m, seed=1).run(), default=str))
+        assert current[m] == original, m
 
 
 def test_sionna_model_is_deterministic_and_differs_from_constant():
