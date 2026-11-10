@@ -13,3 +13,4 @@ viz/web/public/data/
 docs/slides/node_modules/
 # shared archive of the project
 *.zip
+.claude/
