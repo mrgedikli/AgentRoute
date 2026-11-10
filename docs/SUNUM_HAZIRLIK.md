@@ -1,6 +1,6 @@
 # AgentRoute — Sunum Hazırlığı (11 Kasım 2026)
 
-Toplam ~15 dakika, kişi başı ~5 dakika. Slaytlar İngilizce. Canlı demo yok, kaydedilmiş animasyon videosu kullanılacak.
+Toplam ~15 dakika, kişi başı en fazla 5 dakika. Slaytlar İngilizce, konuşma ve konuşmacı notları Türkçe. Canlı demo yok, kaydedilmiş animasyon videosu kullanılacak.
 
 **Tek cümle:** "Paketleri bir adrese değil bir yeteneğe yönlendiriyoruz ve router'ların bu kararı öğrenmesinin işe yarayıp yaramadığını ölçüyoruz."
 
@@ -9,8 +9,8 @@ Toplam ~15 dakika, kişi başı ~5 dakika. Slaytlar İngilizce. Canlı demo yok,
 | Slaytlar | Konuşmacı | İçerik |
 |---|---|---|
 | 1–5 | Ömer | Başlık, "nerede" vs "kim yapabilir", iki klasik çözüm ve mobilite, ilgili çalışmalar, tek resimde AgentRoute |
-| 6–9 | Bekir Emre | Capability address, S-FIB, duyuru yarıçapı R, sorun çoğunlukla eşleşmede (kapanış sorusu) |
-| 10–19 | Bekir Göktepe | DQN, doğrulama eğrisi, handover maliyeti, deney düzeni, ölçek, istek hızı, dayanıklılık, iki video, takeaways |
+| 6–10 | Bekir Emre | Capability address, S-FIB, duyuru yarıçapı R, mobilite ve handover maliyeti, sorun çoğunlukla eşleşmede (kapanış sorusu) |
+| 11–19 | Bekir Göktepe | DQN, doğrulama eğrisi, deney düzeni, ölçek, istek hızı, dayanıklılık, iki video, takeaways |
 | 20 | (yedek) | S-FIB içeriği ve header boyutu, soru gelirse |
 
 **Önemli:** Çekirdek modüllerin v2 hali yapay zeka aracıyla yazıldı (`docs/KIM_NE_YAPTI.md`). Herkes kendi modülünün v2 halini okuyup anlatabilmeli. Hoca sorarsa bunu saklamayın, ama kodu da açıklayabilin.
@@ -29,7 +29,7 @@ Toplam ~15 dakika, kişi başı ~5 dakika. Slaytlar İngilizce. Canlı demo yok,
 - INS (1999), Siena (2001), pSearch (2003): fikir yeni değil. Bunu kendiniz söyleyin.
 - Figure 1 ile genel bakış, ayrıntıya girmeden: duyurular tabloları dolduruyor, görev paketi hop hop yetenekli agent'a gidiyor.
 
-## 2. Bekir Emre (~5 dk): Adresleme ve semantik tablo
+## 2. Bekir Emre (~5 dk): Adresleme, semantik tablo ve mobilite
 
 - **Capability address:** her agent'ın kendi vektörü var. Sınıfın 5 cümlesinin MiniLM vektörlerinin rastgele ağırlıklı karışımı. Aynı işi yapan iki sağlayıcı yakın ama aynı değil.
 - **Örnek çift:** "find the cars in this photo" ↔ "object detection in images" (cos 0.517).
@@ -38,16 +38,16 @@ Toplam ~15 dakika, kişi başı ~5 dakika. Slaytlar İngilizce. Canlı demo yok,
 - **İki katman:** bir hop ötedeki agent'lar için tek tek satır, daha uzak için k = 8 temsilci vektör. Mesaj boyutu agent sayısıyla büyümez.
 - **Duyuru yarıçapı:** R = 2 yeterli. R arttıkça kontrol trafiği neredeyse sabit (485 → 506 kB/s), çünkü her hop yeniden özetliyor.
 - **Encoder:** altı encoder denedik, test doğruluğu 0.73–0.77. n = 150 ile aralarındaki fark gürültü. Encoder değiştirmek çare değil.
+- **Mobilite:** eski hücre withdraw, yeni hücre announce, yalnızca R hop içinde. Handover başına 20 mesaj, ağ büyüse de sabit.
 - Bitiriş sorusu (sözü Bekir Göktepe'ye bağlar): **"En benzer komşu tıkalıysa ya da bir hop ötede daha iyisi varsa, burada teslim mi edelim, yoksa devam mı?"**
 
-## 3. Bekir Göktepe (~5 dk): Öğrenen karar, mobilite, değerlendirme
+## 3. Bekir Göktepe (~5 dk): Öğrenen karar ve değerlendirme
 
 - **DQN:**
   - Aksiyonlar: komşular + "burada teslim et".
   - Durum (her aksiyon için 15 özellik): benzerlik, kuyruk, link kalitesi, handover bayrağı, TTL, tür.
   - Ödül: −gecikme, teslimde +1, düşerse −1. Aynı ödülü greedy için de ölçüyoruz.
   - Tüm router'lar tek ağı paylaşıyor, her aksiyonu ayrı skorluyor.
-- **Mobilite:** eski hücre withdraw, yeni hücre announce, yalnızca R hop içinde. Handover başına 20 mesaj, ağ büyüse de sabit.
 - **Sonuçlar (10 seed, görülmemiş parafrazlar, 1.000 agent):**
   - Eşleşme tavanı %69.3. Bu bir üst sınır değil, referans çizgisi.
   - DQN %62.9. Aynı tabloda greedy %60.4, yük duyarlı greedy %59.4.

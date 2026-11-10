@@ -1,4 +1,4 @@
-// Builds docs/slides/AgentRoute.pptx (English, ~15 minutes, three speakers).
+// Builds docs/slides/AgentRoute.pptx (English slides, Turkish speaker notes, ~15 minutes, three speakers).
 //
 //   cd docs/slides && npm install && npm run build
 //
@@ -100,8 +100,8 @@ pres.defineSlideMaster({
 
 const SPEAKERS = {
   omer: "Ömer Faruk Gedikli · problem and big picture",
-  emre: "Bekir Emre Sarıpınar · addressing and S-FIB",
-  goktepe: "Bekir Göktepe · learning, mobility, evaluation",
+  emre: "Bekir Emre Sarıpınar · addressing, S-FIB and mobility",
+  goktepe: "Bekir Göktepe · learning and evaluation",
 };
 
 function content(section, title, speaker, notes) {
@@ -208,6 +208,12 @@ const train = S.train_mlp;
 const bestIdx = train ? train.val_return.indexOf(Math.max(...train.val_return)) : -1;
 const kb = (x) => (x == null ? "n/a" : x >= 1000 ? `${(x / 1000).toFixed(1)} MB` : `${x >= 10 ? Math.round(x) : x.toFixed(1)} kB`);
 const signed = (x, d = 1) => `${x >= 0 ? "+" : "−"}${Math.abs(x).toFixed(d)}`;
+// Turkish number formats, used only in the speaker notes
+const tp = (x, d = 0) => (x == null ? "n/a" : `%${(x * 100).toFixed(d).replace(".", ",")}`);
+const tn = (x) => (x == null ? "n/a" : Math.round(x).toLocaleString("tr-TR"));
+const td = (x) => String(x).replace(".", ",");
+const tk = (x) => kb(x).replace(".", ",");
+const tabs = (p) => (p ? Math.abs(p.success_diff_points).toFixed(1).replace(".", ",") : "n/a");
 const matched = S.matched || {};
 const scen = (name, pair) => (matched[name] ? matched[name][pair] : null);
 const pairTxt = (p) => (p ? `${signed(p.success_diff_points)} points (95% CI ${p.success_diff_ci95[0].toFixed(1)} to ${p.success_diff_ci95[1].toFixed(1)})` : "n/a");
@@ -251,13 +257,13 @@ pres.addSection({ title: "Problem and big picture" });
     { text: "Ömer Faruk Gedikli · Bekir Emre Sarıpınar · Bekir Göktepe", options: { breakLine: true } },
     { text: "CSE 476/575 Mobile Communication Networks · 11 November 2026" },
   ], { placeholder: "team" });
-  s.addNotes("OMER. One sentence: we route packets to a capability instead of an address, and we test whether routers should learn the next hop. Introduce the three parts: Omer - the problem, Bekir Emre - addressing and the semantic FIB, Bekir Goktepe - learning, mobility and the evaluation.");
+  s.addNotes(`ÖMER. Herkese merhaba. Biz AgentRoute projemizi anlatacağız. Tek cümleyle: paketleri bir adrese değil, bir yeteneğe yönlendiriyoruz ve router'ların bu kararı öğrenmesinin işe yarayıp yaramadığını ölçüyoruz. Ben problemi ve genel resmi anlatacağım, Bekir Emre adresleme, S-FIB ve mobiliteyi, Bekir Göktepe de öğrenen kararı ve değerlendirmeyi anlatacak.`);
 }
 
 // 2 ---- where vs who can
 {
   const s = content("Problem and big picture", "The Internet asks where; agents ask who can", "omer",
-    "Today's Internet answers 'where?': a host has an IP address, and people use DNS names they already know. A postman does not know who you are, he delivers to an address. AI agents ask a different question: 'who can do this task?' They do not know the name or the location of the helper, they ask at machine speed, and the population is large and keeps changing.");
+    `Bugünkü internet "nerede?" sorusuna göre çalışıyor. Bir sunucunun IP adresi var, biz de zaten bildiğimiz alan adlarını DNS ile bu adrese çeviriyoruz. Router'lar paketin içeriğine bakmaz, sadece adres önekine bakar. Postacı gibi düşünebiliriz: postacı size kimin yardım edebileceğini bilmez, sadece adrese götürür. AI agent'lar ise farklı bir soru soruyor: "bu işi kim yapabilir?" Sağdaki örnekte bir agent "bu fotoğraftaki arabaları bul" diyor. Bu işi yapacak agent'ın adını da yerini de bilmiyor. Üstelik bu sorular makine hızında soruluyor, agent sayısı çok büyük ve sürekli değişiyor. Agent'ların birçoğu telefon, araç ya da drone üstünde çalıştığı için bağlandıkları hücre de değişiyor.`);
   box(s, 0.6, 1.5, 5.85, 5.1, PANEL);
   text(s, "Today: routing to a location", 0.95, 1.8, 5.2, 0.5, { fontSize: 20, bold: true, fontFace: "Cambria" });
   text(s, "142.250.187.14", 0.95, 2.5, 5.2, 0.7, { fontSize: 30, fontFace: "Courier New", color: INK2 });
@@ -280,7 +286,7 @@ pres.addSection({ title: "Problem and big picture" });
   const flK = fl("query_kB_per_query"); const arK = gr("query_kB_per_query");
   const hoPerS = gr("handovers") / 30;
   const s = content("Problem and big picture", "Two classic answers, and what they cost", "omer",
-    `Option one is a registry, like DNS: agents register, a request goes to a server first. In our simulation with ${num(big)} agents a request through one central registry takes ${ms(regT)}, because it travels to the server, back, and only then to the agent; semantic forwarding takes ${ms(arT)}. If the server's router fails, discovery stops; replicas fix that part. Option two is flooding: no state at all, but at ${num(big)} agents every request costs ${kb(flK)} of traffic, against ${kb(arK)} for forwarding. And half of our agents move: about ${Math.round(hoPerS)} handovers per second.`);
+    `Bu soruya bugün iki klasik cevap var. Birincisi registry, yani DNS benzeri bir kayıt sunucusu. Agent'lar sunucuya kayıt olur, her istek önce sunucuya gidip döner, ancak ondan sonra agent'a ulaşır. Simülasyonumuzda ${tn(big)} agent'ta bu ${ms(regT)} sürüyor, semantik yönlendirmede ise ${ms(arT)}. Sunucunun bulunduğu router düşerse keşif durur. Gerçi replika kullanmak bu sorunu büyük ölçüde çözüyor, bunu baştan söyleyelim. İkinci cevap flooding: hiç tablo tutmaz, isteği çevresindeki herkese sorar. Ama aynı ölçekte istek başına ${tk(flK)} trafik üretiyor, yönlendirmede bu ${tk(arK)}. Üçüncü zorluk mobilite: agent'larımızın yarısı hareket ediyor ve bu ölçekte saniyede yaklaşık ${Math.round(hoPerS)} handover oluyor. Bizim sorumuz şu: router'lar yetenekli agent'ı merkezi bir sunucu olmadan kendileri bulabilir mi, ve bu kararı öğrenmek işe yarar mı?`);
   const cards = [
     { n: 1, head: "Registry", body: "Every request first goes to a server and back. One server is also a single point of failure.",
       value: ms(regT), label: `per request at ${num(big)} agents (semantic forwarding: ${ms(arT)})`, color: M.registry.color },
@@ -305,7 +311,7 @@ pres.addSection({ title: "Problem and big picture" });
 // 4 ---- related work
 {
   const s = content("Problem and big picture", "Where AgentRoute sits among related work", "omer",
-    "Naming by intent is not new: INS did it at the application level in 1999, and pSearch ran semantic search over a DHT in 2003. Recent Internet-of-Agents work adds protocol layers above HTTP [1], or discovery services [3], [4]. An IETF draft [14] proposes a semantic forwarding table steered by a controller, without an evaluation. The closest work, SPFR [2], forwards hop by hop to the dominant executor with a hand-designed potential field and proves loop freedom; it keeps one table row per executor and is evaluated on wired topologies. We use a compressed two-tier table, test whether a learned policy helps, and evaluate in a mobile cellular topology against SPFR's rule. NDN routes by name as well, but by exact prefix.");
+    `Fikir yeni değil, bunu baştan söyleyelim. 1999'da INS, niyete göre isimlendirmeyi uygulama seviyesinde yaptı. 2003'te pSearch, DHT üzerinde semantik arama yaptı. Son dönemdeki Internet of Agents çalışmaları ya HTTP üstüne yeni protokol katmanları ekliyor ya da keşif servisleri öneriyor. Bir IETF taslağı router'lara semantik yönlendirme tablosu koymayı öneriyor ama değerlendirme sunmuyor. Bize en yakın çalışma SPFR. SPFR paketi hop hop en baskın agent'a doğru yönlendiriyor, ama kuralı elle tasarlanmış, her agent için tabloda ayrı satır tutuyor ve kablolu topolojilerde değerlendirilmiş. Biz ise sıkıştırılmış, iki katmanlı bir tablo kullanıyoruz, kuralı öğrenmenin işe yarayıp yaramadığını test ediyoruz ve hücresel mobil bir ağda SPFR'nin kuralıyla karşılaştırıyoruz. NDN de isimle yönlendirir ama tam önek eşleşmesi ister, farklı kelimelerle sorulan bir istek orada bulunamaz.`);
   const head = (t) => ({ text: t, options: { bold: true, color: WHITE, fill: { color: NAVY } } });
   const rows = [
     [head("Work"), head("Where it lives"), head("Matching"), head("Next hop"), head("Mobile evaluation")],
@@ -327,7 +333,7 @@ pres.addSection({ title: "Problem and big picture" });
 // 5 ---- one picture
 {
   const s = content("Problem and big picture", "AgentRoute in one picture", "omer",
-    "Two things happen. (1) Dashed: agents advertise their capabilities, and every router fills its semantic FIB - for each neighbour, which capabilities lie behind it. (2) Solid: a task packet carries an intent embedding instead of a destination address; each router either hands it to a local agent or forwards it to the best neighbour. Inside every node, the S-FIB match and the local network state go into the policy that takes this decision. Bekir Emre now explains the addressing and the S-FIB.");
+    `Sistemi tek resimde görelim. İki şey oluyor. Birincisi kesikli oklar: agent'lar yeteneklerini duyuruyor, her router da kendi semantik tablosunu, yani S-FIB'ini dolduruyor. Bu tabloda her komşu için, o komşunun arkasında hangi yeteneklerin olduğu yazıyor. İkincisi düz oklar: görev paketi hedef adres yerine, isteğin anlamını temsil eden bir vektör taşıyor. Her router ya paketi yanındaki bir agent'a teslim ediyor ya da en uygun komşuya iletiyor. Alttaki kısım bir düğümün içini gösteriyor: paketteki vektör S-FIB ile karşılaştırılıyor, buna kuyruk doluluğu, link kalitesi, handover ve kalan TTL gibi yerel bilgiler ekleniyor, sonunda policy "burada teslim et" ya da "şu komşuya gönder" kararını veriyor. Yani karar yalnızca yerel bilgiyle veriliyor, merkezde kimse yok. Şimdi Bekir Emre adreslemeyi ve tabloyu anlatacak.`);
   const nodes = [
     { t: "Requesting agent", b: "on a mobile UE,\nmoves between cells", hl: false },
     { t: "gNB + edge node", b: "AgentRoute node\nS-FIB + policy", hl: true },
@@ -370,7 +376,7 @@ pres.addSection({ title: "Addressing and S-FIB" });
   const tops = Object.values(encoders).map((e) => e.test.top1);
   const encRange = `${Math.round(Math.min(...tops) * 100)}–${Math.round(Math.max(...tops) * 100)}%`;
   const s = content("Addressing and S-FIB", "A capability address is a vector, not a host", "emre",
-    `BEKIR EMRE. Each provider describes its skill in its own words, so every agent gets its own vector: a random mix of the sentences of its capability. We encode the sentences with the pre-trained MiniLM encoder. Example: 'find the cars in this photo' has cosine ${sim.example[0].cos} with the object-detection card, but only ${sim.example[2].cos} with image classification. An agent accepts a task when the cosine is at least tau = ${TAU.tau}. We choose tau by expected value: plus one for the right agent, minus one for the wrong agent, zero for nothing. On unseen paraphrases the most similar agent is of the right class ${pct(TAU.test_top1)} of the time. We tried ${tops.length} pre-trained encoders: they all land at ${encRange} on the unseen paraphrases, so a bigger encoder does not fix this. The chart shows why: same-class and other-class similarities overlap.`);
+    `BEKİR EMRE. Önce adres. Her sağlayıcı yeteneğini kendi kelimeleriyle anlatıyor, bu yüzden her agent'ın kendine ait bir vektörü var. Bu vektör, o yeteneği anlatan cümlelerin MiniLM ile çıkarılan vektörlerinin rastgele ağırlıklı karışımı. Örneğin "find the cars in this photo" isteğinin nesne tespiti kartıyla benzerliği ${td(sim.example[0].cos)}, görüntü sınıflandırmayla ${td(sim.example[2].cos)}. Agent, benzerlik tau eşiğini, yani ${td(TAU.tau)} değerini geçerse işi kabul ediyor. Eşiği beklenen değere göre seçtik: doğru agent artı bir, yanlış agent eksi bir, kabul yoksa sıfır. Görülmemiş cümlelerde en benzer agent ${tp(TAU.test_top1)} oranında doğru sınıftan. ${tops.length} farklı encoder denedik, hepsi ${encRange} bandında kaldı, yani daha büyük bir model bunu çözmüyor. Sağdaki grafik nedenini gösteriyor: aynı sınıf ve farklı sınıf benzerlikleri üst üste biniyor.`);
   text(s, "Agent's sentences → MiniLM → its own weighted mix", 0.6, 1.5, 6.0, 0.4, { fontSize: 16, bold: true });
   box(s, 0.6, 2.0, 6.0, 1.45, PANEL);
   bullets(s, ["object detection in images", "box the vehicles in a traffic camera image",
@@ -397,7 +403,7 @@ pres.addSection({ title: "Addressing and S-FIB" });
 {
   const v = (name, metric) => get("ablation_summary", "greedy", metric, name);
   const s = content("Addressing and S-FIB", "The S-FIB: what lies behind each neighbour", "emre",
-    `A normal router says 'for this IP range, use that port'. Our router says 'behind this neighbour there are these capabilities' - like the sign at a mall corridor. Routers exchange only what fits in a message. Agents attached to a neighbour keep their own row; everything further away is compressed at every hop into k = 8 representative vectors, so a message does not grow with the number of agents. In the ablation, greedy forwarding reaches ${pct(v("k=8, no tier", "success_rate"))} with summaries only, ${pct(v("k=8", "success_rate"))} with the two-tier table and ${pct(v("exact", "success_rate"))} with one row per agent, which costs ${kb(v("exact", "ctrl_kB_per_s"))} per second instead of ${kb(v("k=8", "ctrl_kB_per_s"))}. Under this table we also changed the delivery rule: a router keeps forwarding when a neighbour advertises a clearly better candidate.`);
+    `Normal bir router "bu IP aralığı için şu kapıdan çık" der. Bizim router ise "bu komşunun arkasında şu yetenekler var" diyor. AVM'lerdeki koridor tabelası gibi düşünebilirsiniz. Tabloyu iki katmanlı yaptık. Bir komşuya doğrudan bağlı agent'lar için tek tek satır tutuyoruz. Daha uzaktakileri ise her hop'ta en fazla sekiz temsilci vektöre sıkıştırıyoruz, böylece mesaj boyutu agent sayısıyla büyümüyor. Bedelini ölçtük: greedy yönlendirme sadece özetlerle ${tp(v("k=8, no tier", "success_rate"))}, iki katmanlı tabloyla ${tp(v("k=8", "success_rate"))}, her agent için tam satırla ${tp(v("exact", "success_rate"))} başarı veriyor. Ama tam tablo saniyede ${tk(v("exact", "ctrl_kB_per_s"))} trafik istiyor, iki katmanlı tablo ise ${tk(v("k=8", "ctrl_kB_per_s"))}. Bir de teslim kuralı var: bir komşu açıkça daha iyi bir aday duyuruyorsa router paketi teslim etmeyip iletmeye devam ediyor.`);
   const head = (t) => ({ text: t, options: { bold: true, color: WHITE, fill: { color: NAVY } } });
   const rows = [
     [head("Behind neighbour"), head("What the table holds"), head("Hops")],
@@ -424,7 +430,7 @@ pres.addSection({ title: "Addressing and S-FIB" });
   const r = S.radius.values;
   const methods = ["agentroute", "greedy", "greedy_load"];
   const s = content("Addressing and S-FIB", "Advertisements reach R hops, not the whole network", "emre",
-    `Agents do not advertise to the whole network, only R hops away. With ${num(1000)} agents, going from R = ${r[0]} to R = ${r[r.length - 1]} moves greedy from ${pct(get("radius", "greedy", "success_rate", r[0]))} to ${pct(get("radius", "greedy", "success_rate", r[r.length - 1]))} success, and control traffic from ${kb(get("radius", "greedy", "ctrl_kB_per_s", r[0]))} to ${kb(get("radius", "greedy", "ctrl_kB_per_s", r[r.length - 1]))} per second. Success peaks at R = 2 (${pct(get("radius", "greedy", "success_rate", 2))}): beyond it nothing improves, and control traffic hardly grows because every link carries the same few representatives. So we use R = 2, which is also SPFR's control horizon.`);
+    `Agent'lar bütün ağa değil, yalnızca R hop uzağa duyuru yapıyor. ${tn(1000)} agent'ta R eşittir ${r[0]} iken greedy başarısı ${tp(get("radius", "greedy", "success_rate", r[0]))} ve kontrol trafiği saniyede ${tk(get("radius", "greedy", "ctrl_kB_per_s", r[0]))}. R eşittir ${r[r.length - 1]} iken başarı ${tp(get("radius", "greedy", "success_rate", r[r.length - 1]))}, trafik ${tk(get("radius", "greedy", "ctrl_kB_per_s", r[r.length - 1]))}. En iyi nokta R eşittir 2, başarı ${tp(get("radius", "greedy", "success_rate", 2))}. Bunun ötesinde başarı artmıyor, trafik de neredeyse sabit kalıyor, çünkü her link aynı az sayıda temsilci vektörü taşıyor. Bu yüzden R eşittir 2 kullandık, SPFR'nin kontrol ufku da aynı.`);
   methodLines(s, "radius", "success_rate", methods, { x: 0.6, y: 1.45, w: 6.0, h: 5.0, scale: 100, fmt: '0"%"', min: 0,
     title: "Success rate", xTitle: "advertisement radius R (hops)", yTitle: "success" });
   s.addChart(pres.charts.LINE, [{ name: "Same S-FIB for all these methods", labels: r.map(String),
@@ -432,12 +438,40 @@ pres.addSection({ title: "Addressing and S-FIB" });
     title: "Control traffic (kB/s)", xTitle: "advertisement radius R (hops)", yTitle: "kB/s" }));
 }
 
-// 9 ---- what limits success
+// 9 ---- mobility
+{
+  const sp_ = S.mobility.values;
+  const hi = sp_[sp_.length - 1];
+  const hc = S.handover_cost;
+  const sizes = Object.keys(hc).map(Number).sort((a, b) => a - b);
+  const n = sizes[sizes.length - 1];
+  const top = hc[String(n)];
+  const lo = get("mobility", "greedy", "ctrl_kB_per_s", 0.0);
+  const up = get("mobility", "greedy", "ctrl_kB_per_s", hi);
+  const rlo = get("mobility", "registry3", "ctrl_kB_per_s", 0.0);
+  const rup = get("mobility", "registry3", "ctrl_kB_per_s", hi);
+  const s = content("Addressing and S-FIB", "Mobility costs messages, not success", "emre",
+    `Mobilite de tam bu tabloyla ilgili. Bir telefon hücre değiştirince eski gNB onu siliyor, yeni gNB R hop içinde duyuruyor. Bir router bu güncellemeyi ancak kendi özetlerinden biri gerçekten değişiyorsa ileri aktarıyor, yani bütün ağ yeniden flood edilmiyor. ${tn(n)} agent'ta handover başına yaklaşık ${Math.round(top.msgs_per_handover)} mesaj gidiyor. Handover trafiği saniyede ${tk(top.handover_kB_per_s)}, periyodik yenileme ise ${tk(top.refresh_kB_per_s)}. Başarı ise hıza neredeyse hiç bağlı değil. Saniyede ${hi} metre hızda, 150 metrelik küçük hücrelerde bile greedy ${tp(get("mobility_small", "greedy", "success_rate", hi))}, üç replikalı registry ${tp(get("mobility_small", "registry3", "success_rate", hi))}, çünkü bir agent sadece 50 milisaniye kesinti yaşıyor. Yani modelimizde mobilite bir ulaşılabilirlik değil, maliyet sorunu. 500 metrelik hücrelerde, durağandan saniyede ${hi} metreye çıkınca S-FIB'in kontrol trafiği ${tk(lo)} değerinden ${tk(up)} değerine, üç replikalı registry'ninki ${tk(rlo)} değerinden ${tk(rup)} değerine çıkıyor.`);
+  box(s, 0.6, 1.5, 4.6, 5.0, PANEL);
+  text(s, "Incremental S-FIB update", 0.9, 1.7, 4.0, 0.45, { fontSize: 18, bold: true, fontFace: "Cambria" });
+  circleNum(s, 1, 0.9, 2.35, CRIT, 0.42);
+  text(s, "Old cell withdraws the agent within R hops", 1.45, 2.38, 3.6, 0.6, { fontSize: 14 });
+  circleNum(s, 2, 0.9, 3.05, GOOD, 0.42);
+  text(s, "New cell announces it within R hops", 1.45, 3.08, 3.6, 0.6, { fontSize: 14 });
+  circleNum(s, 3, 0.9, 3.75, "6B6A66", 0.42);
+  text(s, "A router forwards it only if a summary moves", 1.45, 3.78, 3.6, 0.6, { fontSize: 14 });
+  stat(s, String(top.msgs_per_handover), `messages per handover at ${num(n)} agents`, 0.9, 4.6, 2.0, "1C5CAB");
+  stat(s, `${kb(top.handover_kB_per_s)}/s`, `handovers, next to ${kb(top.refresh_kB_per_s)}/s of refresh`, 3.0, 4.6, 2.1, INK2);
+  successWithCeiling(s, "mobility_small", ALL, { x: 5.45, y: 1.45, w: 7.3, h: 5.05,
+    title: `Success vs speed (${num(1000)} agents, 150 m cells)`, xTitle: "mobile agent speed (m/s)" });
+}
+
+// 10 ---- what limits success
 {
   const d = S.scale.drops || {};
   const oracle = gr("oracle_best", mid);
   const s = content("Addressing and S-FIB", "Most failures come from matching, not routing", "emre",
-    `With ${num(mid)} agents, a method that knows every attached agent would still only succeed on ${pct(oracle)} of requests: for the rest, the most similar agent is of the wrong class or nothing passes tau. That is the dashed ceiling on the later charts. Greedy forwarding delivers ${pct(gr("success_rate", mid))}, the central registry ${pct(rg("success_rate", mid))}, flooding ${pct(fl("success_rate", mid))}. The remaining failures are wrong matches, and packets that never find a match and run out of TTL. So the next question: what if the most similar neighbour is congested, or a better match is one hop away? Bekir Goktepe continues.`);
+    `Peki başarıyı ne sınırlıyor? ${tn(mid)} agent'ta her agent'ı bilen bir yöntem bile isteklerin ancak ${tp(oracle)} kadarını çözebilir, çünkü geri kalanında en benzer agent yanlış sınıftan ya da kimse eşiği geçmiyor. İleride grafiklerde göreceğiniz kesikli tavan çizgisi bu. Greedy ${tp(gr("success_rate", mid))}, merkezi registry ${tp(rg("success_rate", mid))}, flooding ${tp(fl("success_rate", mid))} başarı veriyor. Kalan hatalar yanlış eşleşmeler ve TTL bitene kadar eşleşme bulamayan paketler. Greedy kuralının da bir sınırı var: en benzer komşu tıkalıysa ya da bir hop ötede daha iyisi varsa ne olacak? Burada teslim mi edelim, devam mı edelim? Bu kararı Bekir Göktepe anlatacak.`);
   stat(s, pct(oracle), `matching ceiling with ${num(mid)} agents`, 0.6, 1.6, 3.6, INK);
   stat(s, pct(gr("success_rate", mid)), "greedy semantic forwarding", 0.6, 3.15, 3.6, M.greedy.color);
   const reasons = [["wrong_agent", "Wrong agent"], ["not_found", "No match found"], ["ttl", "TTL expired"],
@@ -459,11 +493,11 @@ pres.addSection({ title: "Addressing and S-FIB" });
     0.9, 5.7, 11.6, 0.65, { fontSize: 20, bold: true, fontFace: "Cambria", color: "1C5CAB", valign: "middle" });
 }
 
-// 10 ---- DQN
-pres.addSection({ title: "Learning, mobility, evaluation" });
+// 11 ---- DQN
+pres.addSection({ title: "Learning and evaluation" });
 {
-  const s = content("Learning, mobility, evaluation", "One shared DQN: deliver here, or forward where?", "goktepe",
-    "BEKIR GOKTEPE. The DQN takes the routing decision. Because routers have different numbers of neighbours, the network does not output one value per action: it scores each action separately - input is that action's feature vector, output is one Q-value. The actions are the neighbours, plus 'deliver to the best local agent', so the network also decides whether a local match is good enough. All routers share one network, trained offline in the simulator. Reward per decision is minus the normalised delay, plus one on correct delivery, minus one on a drop or a wrong agent. Training is Double DQN with replay and a target network; the next-state value is the max Q over the next router's actions, which is Q-routing with a neural network.");
+  const s = content("Learning and evaluation", "One shared DQN: deliver here, or forward where?", "goktepe",
+    `BEKİR GÖKTEPE. Bu kararı bir DQN veriyor. Router'ların komşu sayısı farklı olduğu için ağ her seçeneği ayrı ayrı puanlıyor: girdi o seçeneğin 15 özelliği, çıktı tek bir Q değeri. Seçenekler komşular ve "burada teslim et", yani ağ durup durmayacağına da karar veriyor. Tüm router'lar aynı ağı paylaşıyor, eğitim simülasyonda offline yapılıyor. Ödül her kararda gecikmeye bağlı küçük bir ceza, doğru teslimde artı bir, düşme ya da yanlış agent'ta eksi bir. Eğitimde Double DQN, replay buffer ve target network kullandık.`);
   text(s, "Features of one action (15)", 0.6, 1.5, 4.2, 0.4, { fontSize: 16, bold: true });
   const feats = ["S-FIB similarity: max, mean, gap to best", "match above τ, hop distance", "queue occupancy (hello)",
     "link quality and delay", "neighbour in handover", "TTL left, already visited", "type: gNB / core / cloud / deliver here"];
@@ -493,14 +527,14 @@ pres.addSection({ title: "Learning, mobility, evaluation" });
   ], 5.75, 5.6, 6.9, 0.95, { fontSize: 13, color: INK });
 }
 
-// 11 ---- learning curve
+// 12 ---- learning curve
 if (train) {
   const best = train.val_success[bestIdx];
   const bestRet = train.val_return[bestIdx];
   const v = verb(bestRet, Math.max(train.greedy_val_return, train.load_val_return), 0.01);
   const first = train.val_return[0];
-  const s = content("Learning, mobility, evaluation", `Validation: the DQN ${v} both same-table rules`, "goktepe",
-    `Everything here is measured with exploration switched off, on fixed validation scenarios. We do not show the training return, because that one rises anyway as exploration falls. The dashed lines are greedy and load-aware greedy, measured with the same reward. Validation return of the DQN starts at ${first.toFixed(2)} and its best is ${bestRet.toFixed(2)} at episode ${train.episode[bestIdx]}. Greedy has ${train.greedy_val_return.toFixed(2)}, load-aware greedy ${train.load_val_return.toFixed(2)}. Success: DQN ${pct(best, 1)}, greedy ${pct(train.greedy_val_success, 1)}, load-aware ${pct(train.load_val_success, 1)}.`);
+  const s = content("Learning and evaluation", `Validation: the DQN ${v} both same-table rules`, "goktepe",
+    `Bu eğri, doğrulama senaryolarında keşif kapalıyken ölçüldü. Eğitim getirisini göstermiyoruz, çünkü keşif azaldıkça o zaten yükselir. DQN'in getirisi ${td(first.toFixed(2))} ile başlıyor, en iyi değeri ${td(bestRet.toFixed(2))}. Aynı ödülle greedy ${td(train.greedy_val_return.toFixed(2))}, yük duyarlı greedy ${td(train.load_val_return.toFixed(2))}. Yani aynı tabloyu kullanan iki kuralı da geçiyor.`);
   const labels = train.episode.map(String);
   const series = (key, loadKey, greedyKey, f) => [
     { name: M.agentroute.name, labels, values: train[key].map(f) },
@@ -519,38 +553,10 @@ if (train) {
       yTitle: "success", legend: false, extra: { lineDataSymbolSize: 5 } }));
 }
 
-// 12 ---- mobility
-{
-  const sp_ = S.mobility.values;
-  const hi = sp_[sp_.length - 1];
-  const hc = S.handover_cost;
-  const sizes = Object.keys(hc).map(Number).sort((a, b) => a - b);
-  const n = sizes[sizes.length - 1];
-  const top = hc[String(n)];
-  const lo = get("mobility", "greedy", "ctrl_kB_per_s", 0.0);
-  const up = get("mobility", "greedy", "ctrl_kB_per_s", hi);
-  const rlo = get("mobility", "registry3", "ctrl_kB_per_s", 0.0);
-  const rup = get("mobility", "registry3", "ctrl_kB_per_s", hi);
-  const s = content("Learning, mobility, evaluation", "Mobility costs messages, not success", "goktepe",
-    `When a phone changes cell, the old gNB withdraws it and the new gNB announces it within R hops, and a router passes the update on only if one of its summaries really moves. Measured at ${num(n)} agents: ${top.msgs_per_handover} messages per handover, ${top.handover_msgs_per_s} messages per second in total, ${top.handover_kB_per_s} kB/s, next to ${top.refresh_kB_per_s} kB/s of periodic refresh. Success barely depends on speed for any method - at ${hi} m/s greedy delivers ${pct(get("mobility", "greedy", "success_rate", hi))} and a three-replica registry ${pct(get("mobility", "registry3", "success_rate", hi))}, and with 150 metre cells ${pct(get("mobility_small", "greedy", "success_rate", hi))} and ${pct(get("mobility_small", "registry3", "success_rate", hi))} - because an agent is in handover for only 50 ms. So mobility is a cost problem, not a reachability problem: from 0 to ${hi} m/s, control traffic goes from ${kb(lo)} to ${kb(up)} per second for the S-FIB, and from ${kb(rlo)} to ${kb(rup)} for the registry.`);
-  box(s, 0.6, 1.5, 4.6, 5.0, PANEL);
-  text(s, "Incremental S-FIB update", 0.9, 1.7, 4.0, 0.45, { fontSize: 18, bold: true, fontFace: "Cambria" });
-  circleNum(s, 1, 0.9, 2.35, CRIT, 0.42);
-  text(s, "Old cell withdraws the agent within R hops", 1.45, 2.38, 3.6, 0.6, { fontSize: 14 });
-  circleNum(s, 2, 0.9, 3.05, GOOD, 0.42);
-  text(s, "New cell announces it within R hops", 1.45, 3.08, 3.6, 0.6, { fontSize: 14 });
-  circleNum(s, 3, 0.9, 3.75, "6B6A66", 0.42);
-  text(s, "A router forwards it only if a summary moves", 1.45, 3.78, 3.6, 0.6, { fontSize: 14 });
-  stat(s, String(top.msgs_per_handover), `messages per handover at ${num(n)} agents`, 0.9, 4.6, 2.0, "1C5CAB");
-  stat(s, `${kb(top.handover_kB_per_s)}/s`, `handovers, next to ${kb(top.refresh_kB_per_s)}/s of refresh`, 3.0, 4.6, 2.1, INK2);
-  successWithCeiling(s, "mobility_small", ALL, { x: 5.45, y: 1.45, w: 7.3, h: 5.05,
-    title: `Success vs speed (${num(1000)} agents, 150 m cells)`, xTitle: "mobile agent speed (m/s)" });
-}
-
 // 13 ---- setup
 {
-  const s = content("Learning, mobility, evaluation", "Evaluation setup", "goktepe",
-    "Discrete-event simulator in Python with SimPy and NetworkX. gNB + edge routers on a cell grid, a core network and a cloud; the number of cells grows with the number of agents, up to 450 routers. Agents: 40 percent fixed edge agents, 50 percent mobile with random waypoint, 10 percent in the cloud. Requests use 150 paraphrases never seen in training. We deliberately added strong rivals: a load-aware heuristic, SPFR's rule, a replicated registry and a semantic DHT at the application layer. Chord with exact keys finds nothing by construction, because our requests never repeat a capability text; it is only a cost reference. Ten seeds per point, 95 percent confidence intervals. Times include everything a method must do, including the flooding window and the answer traffic.");
+  const s = content("Learning and evaluation", "Evaluation setup", "goktepe",
+    `Sonuçlar SimPy ile yazdığımız simülatörden geliyor: hücreler, core ağ ve cloud, en fazla 450 router. İstekler eğitimde hiç görülmemiş 150 cümle. Bilerek güçlü rakipler ekledik: yük duyarlı kural, SPFR tarzı kural, üç replikalı registry ve semantik DHT. Chord tanım gereği hiçbir şey bulamıyor, onu sadece referans olarak tutuyoruz. Her nokta 10 seed'in ortalaması.`);
   const cards = [
     ["Topology", "gNB + edge cells, core grid, cloud; 9 → 400 cells, up to 450 routers; queues, bursty hotspots, lossy links"],
     ["Agents", "40% fixed edge, 50% mobile (random waypoint, handover with hysteresis), 10% cloud; every agent has its own vector"],
@@ -570,8 +576,8 @@ if (train) {
 
 // 14 ---- scale
 {
-  const s = content("Learning, mobility, evaluation", `Scaling to ${num(big)} agents`, "goktepe",
-    `Left: success from 100 to ${num(big)} agents, with the matching ceiling as a dashed line. At ${num(big)} agents the ceiling is ${pct(gr("oracle_best"))}. Greedy delivers ${pct(gr("success_rate"))}, the DQN ${pct(ar("success_rate"))}, load-aware greedy ${pct(gl("success_rate"))}, SPFR-style ${pct(sp("success_rate"))}, flooding ${pct(fl("success_rate"))}, the central registry ${pct(rg("success_rate"))}, three replicas ${pct(r3("success_rate"))}, the semantic DHT ${pct(dh("success_rate"))}. Chord is zero by construction. Right: control traffic for the whole network. Times at ${num(big)} agents: forwarding ${ms(gr("time_ms"))}, registry ${ms(rg("time_ms"))}, DHT ${ms(dh("time_ms"))}, flooding ${ms(fl("time_ms"))}.`);
+  const s = content("Learning and evaluation", `Scaling to ${num(big)} agents`, "goktepe",
+    `Solda başarı var. ${tn(big)} agent'ta eşleşme tavanı ${tp(gr("oracle_best"))}, DQN ${tp(ar("success_rate"))}, greedy ${tp(gr("success_rate"))}, SPFR tarzı ${tp(sp("success_rate"))}, flooding ${tp(fl("success_rate"))}, merkezi registry ${tp(rg("success_rate"))}. Sağda kontrol trafiği var. Sürelere bakarsak bu ölçekte yönlendirme ${ms(gr("time_ms"))}, registry ${ms(rg("time_ms"))}, flooding ${ms(fl("time_ms"))}.`);
   const lab = (x) => (x >= 1000 ? `${x / 1000}K` : String(x));
   successWithCeiling(s, "scale", ALL, { x: 0.6, y: 1.45, w: 6.0, h: 5.05, labelFn: lab, title: "Discovery success", xTitle: "number of agents" });
   methodLines(s, "scale", "ctrl_kB_per_s", ALL.filter((m) => m !== "flooding"), { x: 6.75, y: 1.45, w: 6.0, h: 5.05, log: true, labelFn: lab,
@@ -586,8 +592,8 @@ if (train) {
   const total = (m, i) => e.methods[m].ctrl_kB_per_s[i] + e.methods[m].query_kB_per_query[i] * e.values[i];
   const series = methods.map((m) => ({ name: M[m].name, labels, values: e.values.map((_, i) => total(m, i)) }));
   const cross = e.values.find((_, i) => total("flooding", i) > total("agentroute", i));
-  const s = content("Learning, mobility, evaluation", "Who is cheaper depends on the request rate", "goktepe",
-    `Control traffic is paid per second, query traffic per request, so 'messages per request' depends on the rate one assumes. This chart shows the total traffic for ${num(1000)} agents. Flooding has no control traffic, so it wins when requests are rare. ${cross ? `From about ${cross} requests per second flooding costs more than semantic forwarding.` : "In the range we tested flooding stays cheaper."} A registry is the cheapest at any rate, because it sends small messages; what it pays is the extra latency and the dependence on its servers.`);
+  const s = content("Learning and evaluation", "Who is cheaper depends on the request rate", "goktepe",
+    `Kontrol trafiği saniye başına, sorgu trafiği istek başına ödeniyor, bu yüzden toplam maliyet istek hızına bağlı. Flooding'in kontrol trafiği olmadığı için istekler seyrekken o kazanıyor. ${cross ? `Saniyede yaklaşık ${cross} istekten sonra yönlendirmeden pahalıya geliyor.` : "Denediğimiz aralıkta flooding daha ucuz kalıyor."} Registry ise her hızda en ucuz, bunu açıkça söyleyelim. Onun ödediği bedel gecikme ve sunuculara bağımlılık.`);
   s.addChart(pres.charts.LINE, series, chartOpts({ x: 0.6, y: 1.45, w: 8.0, h: 5.05, log: true,
     colors: methods.map((m) => M[m].color), title: `Total traffic, ${num(1000)} agents (kB/s, log)`, xTitle: "requests per second, whole network", yTitle: "kB/s" }));
   box(s, 8.9, 1.6, 3.83, 4.9, PANEL);
@@ -606,8 +612,8 @@ if (train) {
   const heavy = scen(`1000 agents, load 4`, "agentroute vs greedy_load");
   const rb = S.failure.registry_by_server[String(fmax)];
   const regCase = `${pct(rb.up)} when its server survives (${rb.n_up} of ${rb.n_up + rb.n_down} seeds) and ${pct(rb.down)} when it does not`;
-  const s = content("Learning, mobility, evaluation", "Robustness: failures and load", "goktepe",
-    `Left: a fraction of routers fails at one third of the run. With ${pct(fmax)} failed routers greedy delivers ${pct(get("failure", "greedy", "success_rate", fmax))}, the central registry ${pct(get("failure", "registry", "success_rate", fmax))}, three replicas ${pct(get("failure", "registry3", "success_rate", fmax))}. The registry's mean hides two cases: ${regCase}. Replicas fix most of this. Right: the load factor scales both requests and background traffic. At load ${lmax}: DQN ${pct(get("load", "agentroute", "success_rate", lmax))}, greedy ${pct(get("load", "greedy", "success_rate", lmax))}, load-aware greedy ${pct(get("load", "greedy_load", "success_rate", lmax))}, flooding ${pct(get("load", "flooding", "success_rate", lmax))}.${heavy ? ` Paired on the same requests at load 4, DQN minus load-aware greedy is ${pairTxt(heavy)}.` : ""}`);
+  const s = content("Learning and evaluation", "Robustness: failures and load", "goktepe",
+    `Router'ların ${tp(fmax)} kadarı düştüğünde greedy ${tp(get("failure", "greedy", "success_rate", fmax))}, üç replikalı registry ${tp(get("failure", "registry3", "success_rate", fmax))} başarı veriyor, bu ortalamada on denemenin birinde üç replika birden düşüyor. Tek sunuculu registry, sunucu ayaktaysa ${tp(rb.up)}, düşerse ${tp(rb.down)}. Replika bunu büyük ölçüde çözüyor. Sağda yük artışı var: en yüksek yükte DQN ${tp(get("load", "agentroute", "success_rate", lmax))}, greedy ${tp(get("load", "greedy", "success_rate", lmax))}, flooding ${tp(get("load", "flooding", "success_rate", lmax))}.`);
   successWithCeiling(s, "failure", ALL, { x: 0.6, y: 1.45, w: 6.0, h: 5.05,
     labelFn: (x) => `${Math.round(x * 100)}%`, title: "Success vs failed routers", xTitle: "failed routers" });
   successWithCeiling(s, "load", ALL, { x: 6.75, y: 1.45, w: 6.0, h: 5.05, title: "Success vs network load", xTitle: "load factor", legend: false });
@@ -618,27 +624,27 @@ function videoSlide(file, title, notes) {
   const video = path.join(FIG, `${file}.mp4`);
   const poster = path.join(FIG, `${file}_poster.png`);
   if (!fs.existsSync(video)) return;
-  const s = content("Learning, mobility, evaluation", title, "goktepe", notes);
+  const s = content("Learning and evaluation", title, "goktepe", notes);
   const cover = fs.existsSync(poster) ? `data:image/png;base64,${fs.readFileSync(poster).toString("base64")}` : undefined;
   s.addMedia({ type: "video", path: video, x: 1.0, y: 1.4, w: 11.33, h: 5.35, ...(cover ? { cover } : {}) });
 }
 videoSlide("agentroute_demo", "Demo: a request routed by meaning",
-  "Recorded animation from a real simulation log (no live demo). First the advertisements fill the S-FIBs, then one request travels hop by hop to an agent that can serve it, then a phone changes cell and only the nearby entries are updated.");
+  `Bu kayıt gerçek bir simülasyon logundan üretildi. Önce duyurular tabloları dolduruyor, sonra bir istek hop hop uygun agent'a gidiyor, sonra bir telefon hücre değiştiriyor ve sadece yakındaki girdiler güncelleniyor.`);
 {
   const f = path.join(FIG, "greedy_vs_agentroute.json");
   if (fs.existsSync(f)) {
     const c = JSON.parse(fs.readFileSync(f, "utf8"));
     const say = (o) => (o.type === "deliver"
-      ? `is delivered to a ${o.agent_class} agent in ${o.hops} hops, ${o.time_ms} ms`
-      : `fails after ${o.hops} hops (${o.reason.replace("_", " ")})`);
+      ? `${o.hops} hop'ta ve ${td(o.time_ms)} ms içinde ${o.agent_class} agent'ına teslim ediliyor`
+      : `${o.hops} hop sonra başarısız oluyor (${o.reason.replace("_", " ")})`);
     videoSlide("greedy_vs_agentroute", "One selected example: greedy vs learned",
-      `Say this clearly: this is one hand-picked request, chosen because the two paths differ and the learned one does better. It only illustrates what a different decision looks like; the averages are on the other slides. Request: '${c.text}'. Orange halos are routers busy with background traffic. With greedy the request ${say(c.greedy)}; with the learned policy it ${say(c.agentroute)}.`);
+      `Şunu açıkça söyleyelim: bu tek bir seçilmiş örnek, ortalama değil. Turuncu halkalar yoğun router'lar. "${c.text}" isteği greedy ile ${say(c.greedy)}, öğrenen politikayla ${say(c.agentroute)}.`);
   }
 }
 
-// 18 ---- takeaways
+// 19 ---- takeaways
 {
-  const s = pres.addSlide({ masterName: "TITLE_DARK", sectionTitle: "Learning, mobility, evaluation" });
+  const s = pres.addSlide({ masterName: "TITLE_DARK", sectionTitle: "Learning and evaluation" });
   s.addText("Takeaways", { placeholder: "title" });
   const load = ciVerb(dqnVsLoad);
   const items = [
@@ -653,14 +659,14 @@ videoSlide("agentroute_demo", "Demo: a request routed by meaning",
   });
   s.addText("Future work: agent-side verification · learned capability representations · signed advertisements · UDP overlay prototype", {
     x: 0.8, y: 6.2, w: 11.7, h: 0.5, isTextBox: true, margin: 0, fontSize: 14, color: LIGHT });
-  s.addNotes(`Close with the honest summary. Routing by meaning works without a server and is fast. The compressed table is much cheaper than one row per agent and loses little. Learning: compared with a one-line load-balancing rule on the same requests, the DQN ${load} it: ${pairTxt(dqnVsLoad)}; against plain greedy ${pairTxt(dqnVsGreedy)}; against the SPFR-style rule ${pairTxt(dqnVsSpfr)}. The ceiling comes from the matching. If there is time: we also replaced the fixed radio hop by a distance-dependent link model computed with NVIDIA Sionna (3GPP TR 38.901 channel, 5G NR block error rates, HARQ). Success falls by 8 to 21 points, the registries fall the most because they cross the radio four times, and the DQN keeps its lead over greedy. Details are in the final report. Thank you, questions.`);
+  s.addNotes(`Özetle üç şey söyleyebiliriz. Birincisi, anlama göre yönlendirme merkezi sunucu olmadan çalışıyor. İkincisi, bedava değil: registry bayt olarak her zaman daha ucuz, trafik en önemli ölçütse registry seçilmeli. Üçüncüsü, öğrenmenin katkısı küçük ama ölçülebilir: ${tn(big)} agent'ta aynı tabloda DQN, greedy'den ${tabs(dqnVsGreedy)} puan, yük duyarlı kuraldan ${tabs(dqnVsLoad)} puan iyi, tam tablolu SPFR tarzı kuralın ise ${tabs(dqnVsSpfr)} puan gerisinde. Gecikmede anlamlı bir fark yok. Asıl tavanı yönlendirme değil, anlamsal eşleşme belirliyor. Gerçekçi radyo modeliyle başarı 8 ila 21 puan düşüyor, ayrıntısı raporda. Teşekkür ederiz, sorularınızı alalım.`);
 }
 
-// 19 ---- backup: ablations
+// 20 ---- backup: ablations
 if (S.ablation_summary && S.ablation_header) {
   pres.addSection({ title: "Backup" });
   const s = content("Backup", "Backup: S-FIB content and header size", "goktepe",
-    "Backup slide. Left: what the table content costs in success. Right: compressing the intent header from 1,536 bytes (float32) to 388 bytes (int8) or 48 bytes (binary signs).");
+    `Yedek slayt. Solda tablo içeriğinin başarıya etkisi, sağda intent başlığının 1.536 bayttan (float32) 388 bayta (int8) ya da 48 bayta (binary) sıkıştırılması var.`);
   const ORDER = { ablation_summary: ["mean", "k=8, no tier", "k=4", "k=8", "k=16", "exact"], ablation_header: ["float32", "int8", "binary"] };
   const mk = (exp, methods) => methods.map((m) => {
     const vals = S[exp].values;
