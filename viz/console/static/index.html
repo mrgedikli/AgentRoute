@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AgentRoute Console</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,300..800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/app.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='13' fill='none' stroke='%23B0186E' stroke-width='3' stroke-dasharray='4 3'/%3E%3Ccircle cx='16' cy='16' r='4' fill='%2316223A'/%3E%3C/svg%3E">
+</head>
+<body>
+<header class="bar">
+  <a class="mark" href="#simulate" aria-label="AgentRoute home">
+    <svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="13" class="mark-ring"/><circle cx="16" cy="16" r="4" class="mark-dot"/></svg>
+    AgentRoute
+  </a>
+  <nav class="tabs" aria-label="Views">
+    <a href="#simulate" data-view="simulate">Simulate</a>
+    <a href="#ask" data-view="ask">Ask the network</a>
+    <a href="#pipeline" data-view="pipeline">Pipeline</a>
+    <a href="#figures" data-view="figures">Figures</a>
+  </nav>
+  <a class="job-pill" id="jobPill" href="#pipeline" hidden></a>
+</header>
+
+<!-- ============================================================ simulate -->
+<main id="view-simulate" class="view">
+  <aside class="controls">
+    <form id="simForm">
+      <h2>New scenario</h2>
+      <label class="field">
+        <span>Agents <output id="o_agents">300</output></span>
+        <input type="range" name="n_agents" min="100" max="3000" step="100" value="300">
+      </label>
+      <fieldset class="field">
+        <legend>Methods</legend>
+        <div id="methodPicks" class="picks"></div>
+      </fieldset>
+      <label class="field">
+        <span>Advertisement radius R <output id="o_radius">2</output> hops</span>
+        <input type="range" name="radius" min="1" max="6" step="1" value="2">
+      </label>
+      <label class="field">
+        <span>S-FIB summary</span>
+        <select name="summary">
+          <option value="kmeans">k-means representatives</option>
+          <option value="medoid">Medoids</option>
+          <option value="mean">Plain mean</option>
+          <option value="exact">Exact (one row per agent)</option>
+        </select>
+      </label>
+      <label class="field">
+        <span>Mobile agent speed <output id="o_speed">5</output> m/s</span>
+        <input type="range" name="speed" min="0" max="30" step="1" value="5">
+      </label>
+      <label class="field">
+        <span>Network load <output id="o_load">1</output>×</span>
+        <input type="range" name="load" min="0.5" max="4" step="0.5" value="1">
+      </label>
+      <label class="field">
+        <span>Failed routers <output id="o_failure">0</output>%</span>
+        <input type="range" name="failure" min="0" max="0.3" step="0.05" value="0">
+      </label>
+      <label class="field">
+        <span>Simulated time <output id="o_duration">20</output> s</span>
+        <input type="range" name="duration" min="10" max="60" step="5" value="20">
+      </label>
+      <div class="field-row">
+        <label class="field">
+          <span>Seed</span>
+          <input type="number" name="seed" min="1" max="9999" value="1">
+        </label>
+        <label class="check">
+          <input type="checkbox" name="log_events" checked>
+          <span>Keep the replay</span>
+        </label>
+      </div>
+      <button class="primary" type="submit" id="runBtn">Run simulation</button>
+      <p class="hint" id="simStatus" role="status"></p>
+    </form>
+  </aside>
+
+  <section class="stage">
+    <div class="stage-head">
+      <label class="runset">
+        <span class="sr-only">Run shown</span>
+        <select id="runsetSel"></select>
+      </label>
+      <div id="replayTabs" class="replay-tabs" role="tablist" aria-label="Method to replay"></div>
+    </div>
+
+    <div class="theatre">
+    <div class="theatre-main">
+    <div class="map-wrap">
+      <canvas id="map" aria-label="Network map: routers, agents and requests in flight"></canvas>
+      <div class="legend" aria-hidden="true">
+        <span><i class="lg-gnb"></i>gNB + edge router</span>
+        <span><i class="lg-core"></i>Core router</span>
+        <span><i class="lg-agent"></i>Agent</span>
+        <span><i class="lg-busy"></i>Busy router</span>
+      </div>
+      <div class="clock" id="clock">0.000 s</div>
+      <div class="empty" id="mapEmpty" hidden>
+        <p>This run was simulated without the replay, so only its numbers are kept (see Results below).
+          Run it again with “Keep the replay” on to watch the packets.</p>
+      </div>
+    </div>
+
+    <div class="transport">
+      <button id="playBtn" class="icon" aria-label="Pause">
+        <svg viewBox="0 0 20 20" aria-hidden="true"><path id="playIcon" d="M6 4h3v12H6zM11 4h3v12h-3z"/></svg>
+      </button>
+      <input type="range" id="scrub" min="0" max="1000" value="0" aria-label="Simulation time">
+      <label class="speed">
+        <span class="sr-only">Playback speed</span>
+        <select id="speedSel">
+          <option value="0.02">0.02× slow motion</option>
+          <option value="0.05" selected>0.05×</option>
+          <option value="0.2">0.2×</option>
+          <option value="1">Real time</option>
+        </select>
+      </label>
+    </div>
+    </div>
+
+    <div class="inspect">
+      <div class="feed">
+        <h3>Requests around this moment</h3>
+        <ol id="feed"></ol>
+      </div>
+      <div class="detail" id="detail">
+        <p class="hint">Pick a request above, or click a packet on the map, to trace its path.</p>
+      </div>
+    </div>
+    </div>
+
+    <section class="results">
+      <h2>Results</h2>
+      <div class="table-scroll">
+        <table id="resTable">
+          <thead><tr>
+            <th scope="col">Method</th>
+            <th scope="col" class="w-bar">Discovery success <small>tick = oracle ceiling</small></th>
+            <th scope="col" class="num">Precision</th>
+            <th scope="col" class="num">Time ms</th>
+            <th scope="col" class="num">Hops</th>
+            <th scope="col" class="num">kB / request</th>
+            <th scope="col" class="num">Control kB/s</th>
+          </tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <h3>Why requests fail</h3>
+      <div id="drops" class="drops"></div>
+      <div id="dropLegend" class="drop-legend"></div>
+    </section>
+  </section>
+</main>
+
+<!-- ============================================================ ask -->
+<main id="view-ask" class="view" hidden>
+  <section class="ask">
+    <p class="ask-lead">Type a task the way a user would ask for it. The encoder turns it into the
+      intent vector a packet carries, and every agent whose capability scores at least τ would accept it.</p>
+    <form id="askForm" class="ask-form">
+      <label for="askText" class="sr-only">Task request</label>
+      <textarea id="askText" rows="2" maxlength="500" placeholder="translate this contract into German"></textarea>
+      <button class="primary" type="submit" id="askBtn">Find capable agents</button>
+    </form>
+    <div id="examples" class="examples" aria-label="Example requests from the test set"></div>
+    <p class="hint" id="askStatus" role="status"></p>
+    <div id="askOut" class="ask-out"></div>
+  </section>
+</main>
+
+<!-- ============================================================ pipeline -->
+<main id="view-pipeline" class="view" hidden>
+  <section class="steps">
+    <div class="steps-head">
+      <h2>Pipeline</h2>
+      <label class="check">
+        <input type="checkbox" id="quickMode" checked>
+        <span>Quick mode (one seed, fewer values, short training)</span>
+      </label>
+    </div>
+    <div id="stepList"></div>
+  </section>
+  <section class="console">
+    <div class="console-head">
+      <h2 id="logTitle">Log</h2>
+      <span id="logState" class="state"></span>
+      <button id="stopBtn" class="ghost" hidden>Stop</button>
+    </div>
+    <pre id="log" tabindex="0" aria-live="off">Pick a step to run. Its output appears here.</pre>
+    <h3>Earlier jobs</h3>
+    <ul id="jobList" class="job-list"></ul>
+  </section>
+</main>
+
+<!-- ============================================================ figures -->
+<main id="view-figures" class="view" hidden>
+  <section class="figs">
+    <div class="figs-head">
+      <h2>Figures</h2>
+      <p class="hint">From <code>results/figures</code>. Run “Draw the figures” in the pipeline to refresh them.</p>
+    </div>
+    <div id="figGrid" class="fig-grid"></div>
+  </section>
+  <dialog id="figDialog">
+    <form method="dialog"><button class="ghost close" aria-label="Close">Close</button></form>
+    <img id="figBig" alt="">
+    <p id="figCap"></p>
+  </dialog>
+</main>
+
+<script src="/static/app.js"></script>
+</body>
+</html>
