@@ -34,6 +34,12 @@ python experiments/run_all.py --quick
 streamlit run viz/app_streamlit.py
 ```
 
+Her şeyi tek sayfadan çalıştırmak için web konsolu (yeni bağımlılık yok): simülasyonu çalıştırıp paketleri haritada izleme, serbest bir görev cümlesini yeteneklerle eşleştirme, pipeline adımlarını (τ, eğitim, deneyler, grafikler, demo, testler) canlı logla başlatma ve figürleri gezme. Açıldıktan sonra http://localhost:8476 adresine gidin.
+
+```bash
+python viz/console/server.py
+```
+
 ## Sionna radyo modeli
 
 Radyo bağlantısı iki modda çalışır (`configs/default.yaml` içinde `radio.model`): `constant` (sabit 5 ms ve %0,2 kayıp, varsayılan, eski sonuçlarla birebir aynı) ve `sionna` (UE-gNB mesafesine bağlı kayıp ve HARQ gecikmesi). Tablolar repoda (`results/radio_lut*.npz`), simülasyon için Sionna gerekmez. Tabloyu yeniden üretmek için ayrı bir ortamda:
